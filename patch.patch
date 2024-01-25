@@ -1,0 +1,148 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 2e54997..80778fe 100644
+--- CMakeLists.txt
++++ CMakeLists.txt
+@@ -44,6 +44,9 @@ if(NOT GEOGRAM_SUB_BUILD)
+    set(VORPALINE_PLATFORM "" CACHE STRING "")
+ endif()
+ 
++set(SHARE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}" CACHE STRING "")
++set(DOC_INSTALL_PREFIX "${SHARE_INSTALL_PREFIX}/doc" CACHE STRING "")
++
+ include(cmake/geogram.cmake)
+ 
+ set(VORPALINE_VERSION_MAJOR 1)
+@@ -137,7 +140,7 @@ add_subdirectory(doc)
+ ##############################################################################
+ # Cleanup from previous builds
+ 
+-file(REMOVE ${CMAKE_BINARY_DIR}/doc/LICENSE.txt)
++file(REMOVE ${DOC_INSTALL_PREFIX}/LICENSE.txt)
+ 
+ 
+ ##############################################################################
+@@ -146,7 +149,7 @@ file(REMOVE ${CMAKE_BINARY_DIR}/doc/LICENSE.txt)
+ 
+ # FindGeogram.cmake
+ 
+-install(FILES cmake/FindGeogram.cmake DESTINATION lib/cmake/modules COMPONENT devkit)
++install(FILES cmake/FindGeogram.cmake DESTINATION "lib${LIB_SUFFIX}/cmake/modules" COMPONENT devkit)
+ 
+ # Configure CPack
+ 
+diff --git a/cmake/geogram.cmake b/cmake/geogram.cmake
+index 756ef35..1483660 100644
+--- cmake/geogram.cmake
++++ cmake/geogram.cmake
+@@ -1,3 +1,6 @@
++# Define architecture to pass it to source files
++message(STATUS "Using arch: ${CMAKE_SYSTEM_PROCESSOR}")
++add_definitions(-DARCH=${CMAKE_SYSTEM_PROCESSOR})
+ 
+ if(NOT DEFINED GEOGRAM_SOURCE_DIR)
+    set(GEOGRAM_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
+diff --git a/cmake/platforms/AltLinux-gcc/config.cmake b/cmake/platforms/AltLinux-gcc/config.cmake
+new file mode 100644
+index 0000000..2c4e8b4
+--- /dev/null
++++ cmake/platforms/AltLinux-gcc/config.cmake
+@@ -0,0 +1,17 @@
++set(VORPALINE_BUILD_DYNAMIC true)
++
++if(ARCH MATCHES i586|arm)
++   set(VORPALINE_ARCH_32 true)
++elseif(ARCH MATCHES aarch64|x86_64|ppc64le)
++   set(VORPALINE_ARCH_64 true)
++endif()
++
++include(${GEOGRAM_SOURCE_DIR}/cmake/platforms/Linux-gcc.cmake)
++
++if(ARCH MATCHES i586)
++   # Configure FPU to use SSE instructions (IEEE rounding semantics)
++   # In the default 387 mode, rounding is unpredictable
++   add_definitions(-mfpmath=sse)
++elseif(ARCH MATCHES arm|aarch64)
++   add_definitions(-mlittle-endian)
++endif()
+diff --git a/cmake/utilities.cmake b/cmake/utilities.cmake
+index 57ce925..9131aae 100755
+--- cmake/utilities.cmake
++++ cmake/utilities.cmake
+@@ -270,7 +270,7 @@ function(install_devkit_targets)
+             TARGETS ${ARGN}
+             COMPONENT ${component}
+             RUNTIME DESTINATION bin
+-            LIBRARY DESTINATION lib
++            LIBRARY DESTINATION "lib${LIB_SUFFIX}"
+             ARCHIVE DESTINATION lib
+         )
+     endforeach()
+diff --git a/doc/CMakeLists.txt b/doc/CMakeLists.txt
+index 5e169cc..d058709 100755
+--- doc/CMakeLists.txt
++++ doc/CMakeLists.txt
+@@ -12,6 +12,8 @@ if(DOXYGEN_FOUND)
+ 
+   # Add a custom documentation targets
+ 
++  set(DOC_INSTALL_PREFIX "doc" CACHE STRING "")
++
+   add_doc_target(devkit)
+   add_doc_target(devkit-full)
+   add_doc_target(devkit-internal)
+@@ -24,14 +26,14 @@ if(DOXYGEN_FOUND)
+ 
+   # Install documentation
+   if(GEOGRAM_WITH_VORPALINE)
+-      install(FILES README.txt DESTINATION doc COMPONENT runtime)
+-      install(FILES ${CMAKE_CURRENT_BINARY_DIR}/LICENSE.txt DESTINATION doc COMPONENT runtime OPTIONAL)
++      install(FILES README.txt DESTINATION ${DOC_INSTALL_PREFIX} COMPONENT runtime)
++      install(FILES ${CMAKE_CURRENT_BINARY_DIR}/LICENSE.txt DESTINATION ${DOC_INSTALL_PREFIX} COMPONENT runtime OPTIONAL)
+   endif()
+ 
+-  install(FILES ${CMAKE_CURRENT_BINARY_DIR}/VERSION.txt DESTINATION doc/geogram COMPONENT runtime OPTIONAL)
++  install(FILES ${CMAKE_CURRENT_BINARY_DIR}/VERSION.txt DESTINATION ${DOC_INSTALL_PREFIX}/geogram COMPONENT runtime OPTIONAL)
+   
+-  install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/devkit/html DESTINATION doc/devkit COMPONENT doc-devkit OPTIONAL)
+-  install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/devkit-full/html DESTINATION doc/devkit COMPONENT doc-devkit-full OPTIONAL)
+-  install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/devkit-internal/html DESTINATION doc/devkit COMPONENT doc-devkit-internal OPTIONAL)
++  install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/devkit/html DESTINATION ${DOC_INSTALL_PREFIX}/devkit COMPONENT doc-devkit OPTIONAL)
++  install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/devkit-full/html DESTINATION ${DOC_INSTALL_PREFIX}/devkit COMPONENT doc-devkit-full OPTIONAL)
++  install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/devkit-internal/html DESTINATION ${DOC_INSTALL_PREFIX}/devkit COMPONENT doc-devkit-internal OPTIONAL)
+ 
+ endif()
+diff --git a/src/lib/geogram/basic/atomics.h b/src/lib/geogram/basic/atomics.h
+index 1220e39..3919bbc 100644
+--- src/lib/geogram/basic/atomics.h
++++ src/lib/geogram/basic/atomics.h
+@@ -55,7 +55,7 @@
+  */
+ 
+ #ifdef GEO_OS_LINUX
+-#  if defined(GEO_OS_EMSCRIPTEN) 
++#  if defined(GEO_OS_EMSCRIPTEN) || ARCH == aarch64 || ARCH == ppc64le || ARCH == armv7
+ #    define GEO_USE_DUMMY_ATOMICS
+ #  elif defined(GEO_OS_RASPBERRY)
+ #    define GEO_USE_ARM32_ATOMICS
+@@ -123,7 +123,7 @@ typedef GEO::Numeric::uint32 arm32_mutex_t;
+  * \param[in,out] lock the mutex to lock
+  */
+ inline void lock_mutex_arm32(volatile arm32_mutex_t* lock) {
+-    arm_mutex_t tmp;
++    arm32_mutex_t tmp;
+     __asm__ __volatile__ (
+         "1:     ldrex   %0, [%1]     \n" // read lock
+         "       cmp     %0, #0       \n" // check if zero
+diff --git a/src/lib/geogram/basic/thread_sync.h b/src/lib/geogram/basic/thread_sync.h
+index 41b12cc..09ea80b 100644
+--- src/lib/geogram/basic/thread_sync.h
++++ src/lib/geogram/basic/thread_sync.h
+@@ -383,7 +383,7 @@ namespace GEO {
+              */
+             void release_spinlock(index_t i) {
+                 geo_thread_sync_assert(i < size());
+-                memory_barrier_android();
++                memory_barrier_arm32();
+                 index_t w = i >> 5;
+                 word_t b = word_t(i & 31);
+                 atomic_bitreset_arm32(&spinlocks_[w], b);

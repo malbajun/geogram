@@ -1,1 +1,2 @@
-tar: @version@:.
+tar: v@version@:.
+copy?: *patch
