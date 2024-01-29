@@ -51,7 +51,7 @@ index 0000000..2c4e8b4
 +
 +if(ARCH MATCHES i586|arm)
 +   set(VORPALINE_ARCH_32 true)
-+elseif(ARCH MATCHES aarch64|x86_64|ppc64le)
++elseif(ARCH MATCHES aarch64|x86_64|ppc64le|loongarch64)
 +   set(VORPALINE_ARCH_64 true)
 +endif()
 +
