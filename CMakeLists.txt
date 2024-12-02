@@ -56,13 +56,15 @@ if(GEOGRAM_WITH_TBB AND NOT TARGET TBB::tbb)
 include(cmake/onetbb.cmake)
 endif()
 
+# Set remaining CMAKE_INSTALL_...DIR variables
+include(GNUInstallDirs)
+
+set(SHARE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}" CACHE STRING "")
+
 include(cmake/geogram.cmake)
 
 # Override default CMAKE_INSTALL_DOCDIR: Use doc instead of CMake default DATAROOTDIR/doc/PROJECT_NAME
 set(CMAKE_INSTALL_DOCDIR doc CACHE PATH "Documentation root")
-
-# Set remaining CMAKE_INSTALL_...DIR variables
-include(GNUInstallDirs)
 
 # Install destinations for pkg-config and CMake files
 set(GEOGRAM_INSTALL_PKGCONFIG_DIR ${CMAKE_INSTALL_LIBDIR}/pkgconfig CACHE PATH "pkg-config file install destination")
