@@ -53,11 +53,8 @@
 
 #include <fstream>
 
-extern "C" {
-#include <geogram/third_party/libMeshb/sources/libmeshb7.h>
-}
-
-#include <geogram/third_party/rply/rply.h>
+#include <rply.h>
+#include <libmeshb7.h>
 
 #ifdef GEO_COMPILER_GCC
 #include <cxxabi.h>

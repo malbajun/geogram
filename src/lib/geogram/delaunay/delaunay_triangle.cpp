@@ -119,7 +119,7 @@ namespace GEO {
         // Q: quiet
         // z: numbering starts from 0
         // n: output neighbors
-        triangulate(
+        triangulo::triangulate(
             const_cast<char*>("Qzn"), &triangle_in_, &triangle_out_, nullptr
         );
         set_arrays(
@@ -151,7 +151,7 @@ namespace GEO {
         // z: numbering starts from 0
         // n: output neighbors
         // p: Planar Straight Line Graph
-        triangulate(
+        triangulo::triangulate(
             const_cast<char*>("Qznp"), &triangle_in_, &triangle_out_, nullptr
         );
 

@@ -51,7 +51,7 @@
 #endif
 #endif
 
-#include <geogram_gfx/third_party/imgui/imgui_internal.h>
+#include <imgui/imgui_internal.h>
 
 #if defined(GEO_COMPILER_GCC_FAMILY)
 #pragma GCC diagnostic pop

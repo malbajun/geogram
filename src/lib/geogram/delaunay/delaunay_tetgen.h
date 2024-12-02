@@ -50,7 +50,7 @@
 
 #include <geogram/basic/common.h>
 #include <geogram/delaunay/delaunay.h>
-#include <geogram/third_party/tetgen/tetgen.h>
+#include <tetgen/tetgen.h>
 
 // #define GEO_3rdParty
 // #define deinitialize clean_memory
@@ -126,9 +126,9 @@ namespace GEO {
         ~DelaunayTetgen() override;
 
     protected:
-        GEO_3rdParty::tetgenio tetgen_out_;
-        GEO_3rdParty::tetgenio tetgen_in_;
-        GEO_3rdParty::tetgenbehavior tetgen_args_;
+        tetgenio tetgen_out_;
+        tetgenio tetgen_in_;
+        tetgenbehavior tetgen_args_;
     };
 }
 

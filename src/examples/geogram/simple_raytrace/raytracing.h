@@ -49,7 +49,7 @@
 #include <geogram/mesh/mesh_AABB.h>
 
 #ifdef RAYTRACE_GUI
-#include <geogram_gfx/third_party/imgui/imgui.h>
+#include <imgui/imgui.h>
 #include <geogram_gfx/imgui_ext/imgui_ext.h>
 #endif
 

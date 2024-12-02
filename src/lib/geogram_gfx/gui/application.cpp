@@ -41,7 +41,7 @@
 #include <geogram_gfx/gui/user_callback_android.h>
 
 #include <geogram_gfx/imgui_ext/imgui_ext.h>
-#include <geogram_gfx/third_party/imgui/backends/imgui_impl_opengl3.h>
+#include <imgui/backends/imgui_impl_opengl3.h>
 #include <geogram_gfx/imgui_ext/icon_font.h>
 
 #include <geogram_gfx/lua/lua_glup.h>
@@ -59,7 +59,7 @@
 
 
 #if defined(GEO_GLFW)
-#  include <geogram_gfx/third_party/imgui/backends/imgui_impl_glfw.h>
+#  include <imgui/backends/imgui_impl_glfw.h>
 // Too many documentation warnings in glfw
 // (glfw uses tags that clang does not understand).
 #  ifdef __clang__

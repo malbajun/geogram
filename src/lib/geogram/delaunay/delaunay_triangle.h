@@ -51,12 +51,10 @@
 #include <geogram/basic/common.h>
 #include <geogram/delaunay/delaunay.h>
 
-extern "C" {
 #define REAL double
 #define ANSI_DECLARATORS
 #define VOID void
-#include <geogram/third_party/triangle/triangle.h>
-}
+#include <triangle/triangle.h>
 
 namespace GEO {
 
