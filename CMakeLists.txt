@@ -48,6 +48,7 @@ option(GEOGRAM_WITH_FPG "Predicate generator (Sylvain Pion's FPG)" OFF)
 option(GEOGRAM_USE_SYSTEM_GLFW3 "Use the version of GLFW3 installed in the system if found" OFF)
 option(GEOGRAM_WITH_GARGANTUA "64-bit indices" OFF)
 option(GEOGRAM_WITH_TBB "Use TBB for multi-threading" OFF)
+option(GEOGRAM_WITH_THIRD_PARTIES "Use third party code" ON)
 include(cmake/geo_detect_platform.cmake)
 endif()
 

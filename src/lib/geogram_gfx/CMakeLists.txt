@@ -4,7 +4,9 @@ configure_file(geogram_gfx.pc.in ${PROJECT_BINARY_DIR}/geogram_gfx${VORPALINE_VE
 
 add_definitions(-DIMGUI_USER_CONFIG="geogram_imconfig.h")
 
-add_subdirectory(third_party)
+if(GEOGRAM_WITH_THIRD_PARTIES)
+   add_subdirectory(third_party)
+endif()
 
 aux_source_directories(SOURCES "Source Files"                .)
 aux_source_directories(SOURCES "Source Files\\imgui_ext"     imgui_ext)
@@ -20,14 +22,31 @@ if(GEOGRAM_WITH_LUA)
 aux_source_directories(SOURCES "Source Files\\lua"           lua)
 endif()
 
-if(GEOGRAM_USE_SYSTEM_GLFW3)
-add_definitions(-DGEO_USE_SYSTEM_GLFW3)
+if(GEOGRAM_WITH_THIRD_PARTIES)
+   add_library(geogram_gfx SHARED ${SOURCES} $<TARGET_OBJECTS:geogram_gfx_third_party>)
+
+   target_include_directories(geogram_gfx PUBLIC ${PROJECT_SOURCE_DIR}/src/lib/geogram_gfx/third_party)
+   target_include_directories(geogram_gfx PRIVATE ${PROJECT_SOURCE_DIR}/src/lib/geogram_gfx/third_party/imgui)
+else()
+   # from 3rdparty since autogenerate the glad project is too complex
+   aux_source_directories(SOURCES "Source Files\\third_party\\glad"      third_party/glad)
+
+   add_library(geogram_gfx SHARED ${SOURCES})
+
+   find_package(libmeshb REQUIRED)
+
+   if(GEOGRAM_USE_SYSTEM_GLFW3)
+      add_definitions(-DGEO_USE_SYSTEM_GLFW3)
+   endif()
+
+   find_package(imgui REQUIRED)
+   target_link_libraries(geogram_gfx PUBLIC ${imgui_LIBRARIES})
+   target_include_directories(geogram_gfx PRIVATE ${imgui_INCLUDE_DIRS})
+
+   find_package(ImGuiColorTextEdit REQUIRED)
+   target_link_libraries(geogram_gfx PUBLIC ${ImGuiColorTextEdit_LIBRARIES})
+   target_include_directories(geogram_gfx PRIVATE ${ImGuiColorTextEdit_INCLUDE_DIRS})
 endif()
-
-add_library(geogram_gfx ${SOURCES} $<TARGET_OBJECTS:geogram_gfx_third_party>)
-
-target_include_directories(geogram_gfx PUBLIC ${PROJECT_SOURCE_DIR}/src/lib/geogram_gfx/third_party)
-target_include_directories(geogram_gfx PRIVATE ${PROJECT_SOURCE_DIR}/src/lib/geogram_gfx/third_party/imgui)
 
 if(ANDROID)
 target_include_directories(geogram_gfx PRIVATE
@@ -42,13 +61,13 @@ SOVERSION ${VORPALINE_VERSION_MAJOR}
 FOLDER "GEOGRAM")
 
 if(NOT ANDROID)
-target_link_libraries(geogram_gfx glfw)
+   target_link_libraries(geogram_gfx PUBLIC glfw)
 endif()
 
 if(VORPALINE_BUILD_DYNAMIC)
 # Must provide all symbols at link time
-target_link_libraries(geogram_gfx geogram)
-target_link_libraries(geogram_gfx ${OPENGL_LIBRARIES})
+   target_link_libraries(geogram_gfx PUBLIC geogram)
+   target_link_libraries(geogram_gfx PUBLIC ${OPENGL_LIBRARIES})
 endif()
 
 # Install the library
