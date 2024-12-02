@@ -1,6 +1,8 @@
 include(${PROJECT_SOURCE_DIR}/cmake/opengl.cmake)
 
-configure_file(geogram_gfx.pc.in ${PROJECT_BINARY_DIR}/geogram_gfx${VORPALINE_VERSION_MAJOR}.pc @ONLY)
+configure_file(geogram_gfx.pc.in ${PROJECT_BINARY_DIR}/${GEOGRAMGFX_SYSTEM_NAME}.pc @ONLY)
+
+set(GEOGRAMGFX_INCLUDE_SUBPATH ${GEOGRAMGFX_SYSTEM_NAME} CACHE PATH "Header install subpath for geogram gfx")
 
 add_definitions(-DIMGUI_USER_CONFIG="geogram_imconfig.h")
 
@@ -75,21 +77,21 @@ install_devkit_targets(geogram_gfx)
 
 # Install include files for the standard devkit
 install(
-DIRECTORY .
-DESTINATION include/${VORPALINE_INCLUDE_SUBPATH}/geogram_gfx
-COMPONENT devkit
-FILES_MATCHING PATTERN *.h
+   DIRECTORY .
+   DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${GEOGRAMGFX_INCLUDE_SUBPATH}
+   COMPONENT devkit
+   FILES_MATCHING PATTERN *.h
 )
 
 # Install include files for the full devkit
 install(
-DIRECTORY .
-DESTINATION include/${VORPALINE_INCLUDE_SUBPATH}/geogram_gfx
-COMPONENT devkit-full
-FILES_MATCHING PATTERN *.h
+   DIRECTORY .
+   DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${GEOGRAMGFX_INCLUDE_SUBPATH}
+   COMPONENT devkit-full
+   FILES_MATCHING PATTERN *.h
 )
 
 install(
-FILES "${PROJECT_BINARY_DIR}/geogram_gfx${VORPALINE_VERSION_MAJOR}.pc"
-DESTINATION lib${LIB_SUFFIX}/pkgconfig
+   FILES "${PROJECT_BINARY_DIR}/${GEOGRAMGFX_SYSTEM_NAME}.pc"
+   DESTINATION lib${LIB_SUFFIX}/pkgconfig
 )

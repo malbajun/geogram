@@ -1,7 +1,9 @@
 # Tetgen (by Hang Si) is currently included by default.
 # Triangle (by Jonathan Shewchuk) is currently included by default.
 
-configure_file(geogram.pc.in ${PROJECT_BINARY_DIR}/geogram${VORPALINE_VERSION_MAJOR}.pc @ONLY)
+configure_file(geogram.pc.in ${PROJECT_BINARY_DIR}/${GEOGRAM_SYSTEM_NAME}.pc @ONLY)
+
+set(GEOGRAM_INCLUDE_SUBPATH ${GEOGRAM_SYSTEM_NAME} CACHE PATH "Header install subpath for geogram")
 
 if(GEOGRAM_WITH_GEOGRAMPLUS)
    add_subdirectory(geogramplus)
@@ -158,23 +160,23 @@ install_devkit_targets(geogram)
 
 # Install include files for the standard devkit
 install(
-DIRECTORY api
-DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${VORPALINE_INCLUDE_SUBPATH}/geogram
-COMPONENT devkit
-FILES_MATCHING PATTERN *.h
+   DIRECTORY api
+   DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${GEOGRAM_INCLUDE_SUBPATH}
+   COMPONENT devkit
+   FILES_MATCHING PATTERN *.h
 )
 
 # Install include files for the full devkit
 install(
-DIRECTORY .
-DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${VORPALINE_INCLUDE_SUBPATH}/geogram
-COMPONENT devkit-full
-FILES_MATCHING PATTERN *.h
-# Exclude all files related to licensing
-REGEX /license/ EXCLUDE
+   DIRECTORY .
+   DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${GEOGRAM_INCLUDE_SUBPATH}
+   COMPONENT devkit-full
+   FILES_MATCHING PATTERN *.h
+   # Exclude all files related to licensing
+   REGEX /license/ EXCLUDE
 )
 
 install(
-FILES "${PROJECT_BINARY_DIR}/geogram${VORPALINE_VERSION_MAJOR}.pc"
-DESTINATION ${GEOGRAM_INSTALL_PKGCONFIG_DIR}
+   FILES "${PROJECT_BINARY_DIR}/${GEOGRAM_SYSTEM_NAME}.pc"
+   DESTINATION ${GEOGRAM_INSTALL_PKGCONFIG_DIR}
 )

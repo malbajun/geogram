@@ -26,10 +26,14 @@ endif()
 # command, since project() resets CFLAGS and CXXFLAGS.
 
 if(IS_DIRECTORY ${CMAKE_SOURCE_DIR}/src/lib/vorpalib)
-project(Vorpaline VERSION "${VORPALINE_VERSION_PLAIN}")
+   project(Vorpaline VERSION "${VORPALINE_VERSION_PLAIN}")
+   set(GEOGRAM_SYSTEM_NAME vorpaline${VORPALINE_VERSION_MAJOR} CACHE STRING "System name for the project vorpaline")
 else()
-project(Geogram VERSION "${VORPALINE_VERSION_PLAIN}")
+   project(Geogram VERSION "${VORPALINE_VERSION_PLAIN}")
+   set(GEOGRAM_SYSTEM_NAME geogram${VORPALINE_VERSION_MAJOR} CACHE STRING "System name for the project geogram")
+   set(GEOGRAMGFX_SYSTEM_NAME geogramgfx${VORPALINE_VERSION_MAJOR} CACHE STRING "System name for the project geogram gfx")
 endif()
+
 
 # Optional modules
 # (can be overriden in CMakeOptions.txt)
@@ -69,9 +73,6 @@ set(CMAKE_INSTALL_DOCDIR doc CACHE PATH "Documentation root")
 # Install destinations for pkg-config and CMake files
 set(GEOGRAM_INSTALL_PKGCONFIG_DIR ${CMAKE_INSTALL_LIBDIR}/pkgconfig CACHE PATH "pkg-config file install destination")
 set(GEOGRAM_INSTALL_CMAKE_DIR ${CMAKE_INSTALL_LIBDIR}/cmake/modules CACHE PATH "CMake file install destination")
-
-
-set(VORPALINE_INCLUDE_SUBPATH geogram${VORPALINE_VERSION_MAJOR})
 
 # Determine the current Build-OS (Build-platform without the compiler info)
 string(REGEX REPLACE "-[^-]+$" "" VORPALINE_OS ${VORPALINE_PLATFORM})
@@ -162,7 +163,6 @@ file(REMOVE ${CMAKE_BINARY_DIR}/doc/LICENSE.txt)
 
 
 # FindGeogram.cmake
-
 install(FILES cmake/FindGeogram.cmake DESTINATION ${GEOGRAM_INSTALL_CMAKE_DIR} COMPONENT devkit)
 
 # Configure CPack
