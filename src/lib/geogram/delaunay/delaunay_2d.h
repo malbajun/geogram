@@ -123,9 +123,7 @@ namespace GEO {
         /**
          * \copydoc Delaunay::set_vertices()
          */
-        void set_vertices(
-            index_t nb_vertices, const double* vertices
-        ) override;
+        void set_vertices(index_t nb_vertices, const double* vertices) override;
 
         /**
          * \copydoc Delaunay::nearest_vertex()
@@ -145,7 +143,6 @@ namespace GEO {
             return has_empty_cells_;
         }
 
-
         /**
          * \brief Specifies behavior if an empty cell is detected.
          * \param[in] x if set, then computation is aborted as soon
@@ -164,7 +161,7 @@ namespace GEO {
          *  specifying a hint. This constant indicates that
          *  no hint is given.
          */
-        static const index_t NO_TRIANGLE = index_t(-1);
+        static constexpr index_t NO_TRIANGLE = NO_INDEX;
 
         /**
          * \brief Finds in the pointset a set of three non-colinear
@@ -177,9 +174,7 @@ namespace GEO {
          * \retval true if a set of three non-colinear points was found
          * \retval false if all the points are colinear
          */
-        bool create_first_triangle(
-            index_t& iv0, index_t& iv1, index_t& iv2
-        );
+        bool create_first_triangle(index_t& iv0, index_t& iv1, index_t& iv2);
 
         /**
          * \brief Finds the triangle that contains a point.
@@ -224,7 +219,7 @@ namespace GEO {
          *  were previously removed.
          */
         index_t locate_inexact(
-            const double* p, index_t hint, index_t max_iter
+	    const double* p, index_t hint, index_t max_iter
         ) const;
 
         /**
@@ -288,7 +283,6 @@ namespace GEO {
             index_t& first, index_t& last
         );
 
-
         /**
          * \brief Creates a star of triangles filling the conflict
          *  zone.
@@ -308,7 +302,7 @@ namespace GEO {
             index_t t_bndry, index_t e_bndry
         );
 
-        // _________ Combinatorics - new and delete _________________________
+        /*** Combinatorics - new and delete ******************************/
 
         /**
          * \brief Maximum valid index for a triangle.
@@ -337,7 +331,7 @@ namespace GEO {
          *  - not in a list and marked
          *    (cell_next_[t] == cur_stamp_)
          */
-        static const index_t NOT_IN_LIST  = index_t(~0);
+        static constexpr index_t NOT_IN_LIST  = ~index_t(0);
 
         /**
          * \brief If cell_next_[t] & NOT_IN_LIST_BIT != 0,
@@ -354,15 +348,15 @@ namespace GEO {
          *  - not in a list and marked
          *    (cell_next_[t] == cur_stamp_)
          */
-        static const index_t NOT_IN_LIST_BIT = index_t(1u << 31);
+        static constexpr index_t NOT_IN_LIST_BIT =
+	    index_t(1) << (sizeof(index_t)*8-1) ;
 
         /**
          * \brief Symbolic value of the cell_next_ field
          *  that indicates the end of list in a linked
          *  list of triangles.
          */
-        static const index_t END_OF_LIST = ~(NOT_IN_LIST_BIT);
-
+        static constexpr index_t END_OF_LIST = ~NOT_IN_LIST_BIT;
 
         /**
          * \brief Tests whether a triangle belongs to a linked
@@ -446,7 +440,7 @@ namespace GEO {
          * \details The three other vertices then correspond to a
          *  facet on the convex hull of the points.
          */
-        static const signed_index_t VERTEX_AT_INFINITY = -1;
+        static constexpr index_t VERTEX_AT_INFINITY = NO_INDEX;
 
         /**
          * \brief Tests whether a given triangle
@@ -460,9 +454,9 @@ namespace GEO {
          */
         bool triangle_is_finite(index_t t) const {
             return
-                cell_to_v_store_[3 * t]     >= 0 &&
-                cell_to_v_store_[3 * t + 1] >= 0 &&
-                cell_to_v_store_[3 * t + 2] >= 0 ;
+                (cell_to_v_store_[3 * t]     != NO_INDEX) &&
+		(cell_to_v_store_[3 * t + 1] != NO_INDEX) &&
+		(cell_to_v_store_[3 * t + 2] != NO_INDEX) ;
         }
 
         /**
@@ -522,8 +516,12 @@ namespace GEO {
         index_t new_triangle() {
             index_t result;
             if(first_free_ == END_OF_LIST) {
-                cell_to_v_store_.resize(cell_to_v_store_.size() + 3, -1);
-                cell_to_cell_store_.resize(cell_to_cell_store_.size() + 3, -1);
+                cell_to_v_store_.resize(
+		    cell_to_v_store_.size() + 3, NO_INDEX
+		);
+                cell_to_cell_store_.resize(
+		    cell_to_cell_store_.size() + 3, NO_INDEX
+		);
                 // index_t(NOT_IN_LIST) is necessary, else with
                 // NOT_IN_LIST alone the compiler tries to generate a
                 // reference to NOT_IN_LIST resulting in a link error.
@@ -535,9 +533,9 @@ namespace GEO {
                 remove_triangle_from_list(result);
             }
 
-            cell_to_cell_store_[3 * result] = -1;
-            cell_to_cell_store_[3 * result + 1] = -1;
-            cell_to_cell_store_[3 * result + 2] = -1;
+            cell_to_cell_store_[3 * result] = NO_INDEX;
+            cell_to_cell_store_[3 * result + 1] = NO_INDEX;
+            cell_to_cell_store_[3 * result + 2] = NO_INDEX;
 
             return result;
         }
@@ -553,10 +551,7 @@ namespace GEO {
          * \param[in] v3 index of the third vertex
          * \return the index of the newly created triangle
          */
-        index_t new_triangle(
-            signed_index_t v1, signed_index_t v2,
-            signed_index_t v3
-        ) {
+        index_t new_triangle(index_t v1, index_t v2, index_t v3) {
             index_t result = new_triangle();
             cell_to_v_store_[3 * result] = v1;
             cell_to_v_store_[3 * result + 1] = v2;
@@ -611,7 +606,7 @@ namespace GEO {
             cell_next_[t] = cur_stamp_;
         }
 
-        // _________ Combinatorics ___________________________________
+        /**** Combinatorics ****************************************/
 
         /**
          * \brief Returns the local index of a vertex by
@@ -642,7 +637,7 @@ namespace GEO {
          * \return the global index of the \p lv%th vertex of triangle \p t
          *  or -1 if the vertex is at infinity
          */
-        signed_index_t triangle_vertex(index_t t, index_t lv) const {
+        index_t triangle_vertex(index_t t, index_t lv) const {
             geo_debug_assert(t < max_t());
             geo_debug_assert(lv < 3);
             return cell_to_v_store_[3 * t + lv];
@@ -655,10 +650,10 @@ namespace GEO {
          * \return iv such that triangle_vertex(t,v)==iv
          * \pre \p t is incident to \p v
          */
-        index_t find_triangle_vertex(index_t t, signed_index_t v) const {
+        index_t find_triangle_vertex(index_t t, index_t v) const {
             geo_debug_assert(t < max_t());
             //   Find local index of v in triangle t vertices.
-            const signed_index_t* T = &(cell_to_v_store_[3 * t]);
+            const index_t* T = &(cell_to_v_store_[3 * t]);
             return find_3(T,v);
         }
 
@@ -673,8 +668,8 @@ namespace GEO {
         index_t finite_triangle_vertex(index_t t, index_t lv) const {
             geo_debug_assert(t < max_t());
             geo_debug_assert(lv < 3);
-            geo_debug_assert(cell_to_v_store_[3 * t + lv] != -1);
-            return index_t(cell_to_v_store_[3 * t + lv]);
+            geo_debug_assert(cell_to_v_store_[3 * t + lv] != NO_INDEX);
+            return cell_to_v_store_[3 * t + lv];
         }
 
         /**
@@ -683,7 +678,7 @@ namespace GEO {
          * \param[in] lv local vertex index (0,1,2) in \p t
          * \param[in] v global index of the vertex
          */
-        void set_triangle_vertex(index_t t, index_t lv, signed_index_t v) {
+        void set_triangle_vertex(index_t t, index_t lv, index_t v) {
             geo_debug_assert(t < max_t());
             geo_debug_assert(lv < 3);
             cell_to_v_store_[3 * t + lv] = v;
@@ -695,10 +690,10 @@ namespace GEO {
          * \param[in] le local edge (0,1,2) index in \p t
          * \return the triangle adjacent to \p t accros edge \p le
          */
-        signed_index_t triangle_adjacent(index_t t, index_t le) const {
+        index_t triangle_adjacent(index_t t, index_t le) const {
             geo_debug_assert(t < max_t());
             geo_debug_assert(le < 3);
-            signed_index_t result = cell_to_cell_store_[3 * t + le];
+            index_t result = cell_to_cell_store_[3 * t + le];
             return result;
         }
 
@@ -714,28 +709,24 @@ namespace GEO {
             geo_debug_assert(t2 < max_t());
             geo_debug_assert(le1 < 3);
             geo_debug_assert(t1 != t2);
-            cell_to_cell_store_[3 * t1 + le1] = signed_index_t(t2);
+            cell_to_cell_store_[3 * t1 + le1] = t2;
         }
 
         /**
          * \brief Finds the index of the edge accros which t1 is
          *  adjacent to t2_in.
          * \param[in] t1 first triangle
-         * \param[in] t2_in second triangle
-         * \return e such that triangle_adjacent(t1,e)==t2_in
-         * \pre \p t1 and \p t2_in are adjacent
+         * \param[in] t2 second triangle
+         * \return e such that triangle_adjacent(t1,e)==t2
+         * \pre \p t1 and \p t2 are adjacent
          */
-        index_t find_triangle_adjacent(
-            index_t t1, index_t t2_in
-        ) const {
+        index_t find_triangle_adjacent(index_t t1, index_t t2) const {
             geo_debug_assert(t1 < max_t());
-            geo_debug_assert(t2_in < max_t());
-            geo_debug_assert(t1 != t2_in);
-
-            signed_index_t t2 = signed_index_t(t2_in);
+            geo_debug_assert(t2 < max_t());
+            geo_debug_assert(t1 != t2);
 
             // Find local index of t2 in triangle t1 adajcent tets.
-            const signed_index_t* T = &(cell_to_cell_store_[3 * t1]);
+            const index_t* T = &(cell_to_cell_store_[3 * t1]);
             index_t result = find_3(T,t2);
 
             // Sanity check: make sure that t1 is adjacent to t2
@@ -744,8 +735,6 @@ namespace GEO {
             geo_debug_assert(triangle_adjacent(t1,(result+2)%3) != t2);
             return result;
         }
-
-
 
         /**
          * \brief Sets the vertices and adjacent triangles of
@@ -758,22 +747,21 @@ namespace GEO {
          * \param[in] a1 index of the adjacent triangle opposite to \p v1
          * \param[in] a2 index of the adjacent triangle opposite to \p v2
          */
-        void set_tet(
+        void set_triangle(
             index_t t,
-            signed_index_t v0, signed_index_t v1,
-            signed_index_t v2,
+            index_t v0, index_t v1, index_t v2,
             index_t a0, index_t a1, index_t a2
         ) {
             geo_debug_assert(t < max_t());
             cell_to_v_store_[3 * t] = v0;
             cell_to_v_store_[3 * t + 1] = v1;
             cell_to_v_store_[3 * t + 2] = v2;
-            cell_to_cell_store_[3 * t] = signed_index_t(a0);
-            cell_to_cell_store_[3 * t + 1] = signed_index_t(a1);
-            cell_to_cell_store_[3 * t + 2] = signed_index_t(a2);
+            cell_to_cell_store_[3 * t] = a0;
+            cell_to_cell_store_[3 * t + 1] = a1;
+            cell_to_cell_store_[3 * t + 2] = a2;
         }
 
-        // _________ Predicates _____________________________________________
+        /******* Predicates ******************************************/
 
         /**
          * \brief Tests whether a given triangle is in conflict with
@@ -793,8 +781,8 @@ namespace GEO {
             // Lookup triangle vertices
             const double* pv[3];
             for(index_t i=0; i<3; ++i) {
-                signed_index_t v = triangle_vertex(t,i);
-                pv[i] = (v == -1) ? nullptr : vertex_ptr(index_t(v));
+                index_t v = triangle_vertex(t,i);
+                pv[i] = (v == NO_INDEX) ? nullptr : vertex_ptr(v);
             }
 
             // Check for virtual triangles (then in_circle()
@@ -821,8 +809,8 @@ namespace GEO {
 
                     // If sign is zero, we check the real triangle
                     // adjacent to the facet on the convex hull.
-                    geo_debug_assert(triangle_adjacent(t, le) >= 0);
-                    index_t t2 = index_t(triangle_adjacent(t, le));
+                    geo_debug_assert(triangle_adjacent(t, le) != NO_INDEX);
+                    index_t t2 = triangle_adjacent(t, le);
                     geo_debug_assert(!triangle_is_virtual(t2));
 
                     //  If t2 is already chained in the conflict list,
@@ -870,9 +858,7 @@ namespace GEO {
          * \pre The three entries of \p T are different and one of them is
          *  equal to \p v.
          */
-        static inline index_t find_3(
-            const signed_index_t* T, signed_index_t v
-        ) {
+        static inline index_t find_3(const index_t* T, index_t v) {
             // The following expression is 10% faster than using
             // if() statements. This uses the C++ norm, that
             // ensures that the 'true' boolean value converted to
@@ -910,9 +896,7 @@ namespace GEO {
          * \param[in] first index of the first triangle in the list
          * \param[in] list_name name of the list, will be displayed as well
          */
-        void show_list(
-            index_t first, const std::string& list_name
-        ) const;
+        void show_list(index_t first, const std::string& list_name) const;
 
         /**
          * \brief For debugging purposes, tests some combinatorial properties.
@@ -925,8 +909,8 @@ namespace GEO {
         void check_geometry(bool verbose = false) const;
 
     private:
-        vector<signed_index_t> cell_to_v_store_;
-        vector<signed_index_t> cell_to_cell_store_;
+        vector<index_t> cell_to_v_store_;
+        vector<index_t> cell_to_cell_store_;
         vector<index_t> cell_next_;
         vector<index_t> reorder_;
         index_t cur_stamp_; // used for marking

@@ -114,13 +114,19 @@ namespace GEO {
         /**
          * \brief Loads command line argument values from a file.
          * \details only args in the section with \p program_name
-         *  are loaded.
+         *  are loaded if \p program_name is specified.
          * \param[in] filename the complete path to the file.
-         * \param[in] program_name the name of the program.
+         * \param[in] program_name if specified the name of the program.
          */
         void GEOGRAM_API load_config(
-            const std::string& filename, const std::string& program_name
+            const std::string& filename, const std::string& program_name = "*"
         );
+
+	/**
+	 * \brief Saves command line argument values to a file.
+         * \param[in] filename the complete path to the file.
+	 */
+	void GEOGRAM_API save_config(const std::string& filename);
 
         /**
          * \brief Command line argument types
@@ -210,6 +216,14 @@ namespace GEO {
          * \retval #ARG_UNDEFINED otherwise
          */
         ArgType GEOGRAM_API get_arg_type(const std::string& name);
+
+
+	/**
+	 * \brief Gets the description of an argument
+         * \param[in] name the argument name
+	 * \return the description of the argument
+	 */
+	std::string GEOGRAM_API get_arg_desc(const std::string& name);
 
         /**
          * \brief Checks if an argument exists
@@ -628,6 +642,24 @@ namespace GEO {
          * \param[in] value the new value as a floating point
          */
         void GEOGRAM_API set_arg_percent(const std::string& name, double value);
+
+        /********************************************************************/
+
+	/**
+	 * \brief Lists all group names
+	 * \param[out] groups a vector of strings with all group names
+	 */
+	void GEOGRAM_API get_arg_groups(std::vector<std::string>& groups);
+
+	/**
+	 * \brief Lists all arg names in a a group
+	 * \param[in] group a group name
+	 * \param[out] arg_names a vector of strings with all arg names in group
+	 */
+	void GEOGRAM_API get_arg_names_in_group(
+	    const std::string& group,
+	    std::vector<std::string>& arg_names
+	);
 
         /********************************************************************/
 

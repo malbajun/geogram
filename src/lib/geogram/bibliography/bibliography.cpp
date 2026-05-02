@@ -69,6 +69,11 @@ namespace {
     };
 
     vector<CitationRecord> citations_;
+
+    bool cite_flag_initialized = false;
+    bool cite_flag = false;
+    bool use_biblio = false;
+    Process::spinlock lock = GEOGRAM_SPINLOCK_INIT;
 }
 
 void register_embedded_bib_file(void);
@@ -80,13 +85,14 @@ namespace GEO {
         void initialize() {
             register_embedded_bib_file();
             timeorigin = Stopwatch::now();
-            geo_cite("WEB:GEOGRAM");
+	    use_biblio =
+		CmdLine::arg_is_declared("biblio") &&
+                CmdLine::get_arg_bool("biblio");
         }
 
         void terminate() {
             if(
-                CmdLine::arg_is_declared("biblio") &&
-                CmdLine::get_arg_bool("biblio") &&
+		use_biblio &&
                 citations_.size() != 0
             ) {
                 Logger::div("Bibliography");
@@ -165,9 +171,28 @@ namespace GEO {
             const char* ref, const char* file, int line, const char* function,
             const char* info
         ) {
+	    if(!use_biblio) {
+		return;
+	    }
+
             if (bib_refs_.empty()) {
                 return;
             }
+
+	    if(!cite_flag_initialized) {
+		cite_flag = (
+		    CmdLine::arg_is_declared("biblio") &&
+		    CmdLine::get_arg_bool("biblio")
+		);
+		cite_flag_initialized = true;
+		if(cite_flag) {
+		    geo_cite("WEB:GEOGRAM");
+		}
+	    }
+
+	    if(!cite_flag) {
+		return;
+	    }
 
             std::string shortfile = file;
             size_t pos = shortfile.find("src/lib/");
@@ -193,26 +218,25 @@ namespace GEO {
                     break;
                 }
             }
-            shortfunction = shortfunction.substr(pos, shortfunction.length()-pos);
+            shortfunction =
+		shortfunction.substr(pos, shortfunction.length()-pos);
 
+	    Process::acquire_spinlock(lock);
             citations_.push_back(
                 CitationRecord(
-                    ref, shortfile, line, shortfunction, (info != nullptr) ? info : ""
+                    ref, shortfile, line, shortfunction,
+		    (info != nullptr) ? info : ""
                 )
             );
+	    Process::release_spinlock(lock);
 
             std::string context = std::string(shortfunction) + " (" +
                 shortfile + ":" +
                 String::to_string(line) + ")" ;
 
-            if(
-                CmdLine::arg_is_declared("biblio") &&
-                CmdLine::get_arg_bool("biblio")
-            ) {
-                Logger::out("Bibliography")
-                    << "[" << ref << "] cited from: "
-                    << context << std::endl;
-            }
+	    Logger::out("Bibliography")
+		<< "[" << ref << "] cited from: "
+		<< context << std::endl;
         }
 
         void reset_citations() {

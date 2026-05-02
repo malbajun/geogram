@@ -82,6 +82,9 @@ namespace {
          * \brief Draws the everting sphere with the current parameters.
          */
         void draw() {
+
+	    quads_.begin_frame();
+
             // Update the vertices if needed.
             if (vertices_dirty_) {
                 generate_vertices();
@@ -90,10 +93,12 @@ namespace {
             // Set the colors
             glupDisable(GLUP_VERTEX_COLORS);
             if ( rendering_style_ == STYLE_POINTS ) {
-                glupSetColor3f(GLUP_FRONT_AND_BACK_COLOR, 1.0f, 1.0f, 0.0f);
+                glupSetColor4f(
+		    GLUP_FRONT_AND_BACK_COLOR, 1.0f, 1.0f, 0.0f, alpha
+		);
             } else {
-                glupSetColor3f(GLUP_FRONT_COLOR, 0.0f, 0.5f, 1.0f);
-                glupSetColor3f(GLUP_BACK_COLOR, 1.0f, 0.0f, 0.0f);
+                glupSetColor4f(GLUP_FRONT_COLOR, 0.0f, 0.5f, 1.0f, alpha);
+                glupSetColor4f(GLUP_BACK_COLOR, 1.0f, 0.0f, 0.0f, alpha);
             }
 
             glupMatrixMode(GLUP_MODELVIEW_MATRIX);
@@ -122,6 +127,8 @@ namespace {
                 }
                 glupPopMatrix();
             }
+
+	    quads_.end_frame();
         }
 
         /**
@@ -244,6 +251,12 @@ namespace {
             textured_ = b;
         }
 
+	void set_transparent(bool b) {
+	    quads_.set_transparent(
+		b && (rendering_style_ != STYLE_POINTS) && !textured_
+	    );
+	}
+
     protected:
 
         /**
@@ -266,7 +279,7 @@ namespace {
                     }
                 glupEnd();
             } else {
-                glupBegin(GLUP_QUADS);
+		quads_.begin();
                 for (int j=0; j<nb_lat_per_hemisphere_; ++j) {
                     if (
                         rendering_style_ == STYLE_POLYGONS ||
@@ -275,20 +288,14 @@ namespace {
                             (j & 1)==hemisphere
                         )
                     ) {
-                        for(
-                            int k=0;
-                            k<nb_long_per_strip_; ++k
-                        ) {
+                        for(int k=0; k<nb_long_per_strip_; ++k) {
                             draw_vertex(j+1,k);
                             draw_vertex(j,k);
                             draw_vertex(j,k+1);
                             draw_vertex(j+1,k+1);
                         }
                     } else if (rendering_style_ == STYLE_CHECKERED) {
-                        for(
-                            int k=j%2;
-                            k<nb_long_per_strip_; k+=2
-                        ) {
+                        for(int k=j%2; k<nb_long_per_strip_; k+=2) {
                             draw_vertex(j+1,k);
                             draw_vertex(j,k);
                             draw_vertex(j,k+1);
@@ -296,7 +303,7 @@ namespace {
                         }
                     }
                 }
-                glupEnd();
+		quads_.end();
             }
         }
 
@@ -359,19 +366,214 @@ namespace {
         }
 
         inline void draw_vertex(int u, int v) {
-            if(textured_) {
-                glupPrivateTexCoord2f(
-                    float(u) / float(nb_lat_per_hemisphere_),
-                    float(v) / float(nb_long_per_strip_)
-                );
-            }
-            glupPrivateNormal3fv(
-                &(normals_[3*(v * (nb_lat_per_hemisphere_ + 1) + u)])
-            );
-            glupPrivateVertex3fv(
-                &(vertices_[3*(v * (nb_lat_per_hemisphere_ + 1) + u)])
-            );
+	    int lin_index = 3*(v * (nb_lat_per_hemisphere_ + 1) + u);
+	    if(textured_) {
+		quads_.TexCoord2f(
+		    float(u) / float(nb_lat_per_hemisphere_),
+		    float(v) / float(nb_long_per_strip_)
+		);
+	    }
+	    quads_.Normal3fv(&normals_[lin_index]);
+	    quads_.Vertex3fv(&vertices_[lin_index]);
         }
+
+    protected:
+
+	/**
+	 * \brief Stores a list of quads and their normals
+	 *  for sorted transparent rendering.
+	 */
+	class QuadsBuffer {
+	public:
+	    QuadsBuffer() : quads_pointer_(0), transparent_(false) {
+	    }
+
+	    void set_transparent(bool x) {
+		transparent_ = x;
+	    }
+
+	    /**
+	     * \brief Should be called at the beginning of each frame.
+	     */
+	    void begin_frame() {
+		quads_pointer_ = 0;
+		quads_.resize(0);
+		quads_order_.resize(0);
+	    }
+
+	    /**
+	     * \brief Starts a new QUADS primitive
+	     */
+	    void begin() {
+		if(!transparent_) {
+		    glupBegin(GLUP_QUADS);
+		}
+	    }
+
+	    /**
+	     * \brief Specifies the normal vector for the next vertex
+	     * \details Should be called before Vertex3fv()
+	     */
+	    void Normal3fv(const float* N) {
+		if(transparent_) {
+		    quads_.emplace_back(vec3f(N));
+		} else {
+		    // (glupPrivateXXX are just faster inline versions
+		    //  of glupXXX)
+		    glupPrivateNormal3fv(const_cast<float*>(N));
+		}
+	    }
+
+	    /**
+	     * \brief Specifies the tex coords for the next vertex
+	     * \details Should be called before Vertex3fv(). Ignored
+	     *  in transparent mode.
+	     */
+	    void TexCoord2f(float u, float v) {
+		if(!transparent_) {
+		    // (glupPrivateXXX are just faster inline versions
+		    //  of glupXXX)
+		    glupPrivateTexCoord2f(u,v);
+		}
+	    }
+
+	    /**
+	     * \brief Draws a vertex
+	     */
+	    void Vertex3fv(const float* P) {
+		if(transparent_) {
+		    quads_.emplace_back(vec3f(P));
+		} else {
+		    // (glupPrivateXXX are just faster inline versions
+		    //  of glupXXX)
+		    glupPrivateVertex3fv(P);
+		}
+	    }
+
+	    /**
+	     * \brief terminates a QUADS primitive
+	     */
+	    void end() {
+		if(!transparent_) {
+		    glupEnd();
+		    return;
+		}
+
+		// Applies the ModelView transform to the normals and
+		// vertices stored since latest call to begin_frame() or begin()
+		mat4 modelview_t;
+		glupGetMatrixdv(GLUP_MODELVIEW_MATRIX, modelview_t.data());
+
+		// matrix to be used for transforming points
+		// transposed because OpenGL uses row vectors and
+		// vector x matrix transforms.
+		mat4 modelview = modelview_t.transpose();
+
+		// matrix to be used for transforming normals
+		// transposed transposed (that is, not transposed)
+		// because, once agian, OpenGL uses row vectors and
+		// vector x matrix transforms.
+		mat4 modelview_inv_t = modelview_t.inverse();
+
+		for(index_t i=quads_pointer_; i<quads_.size(); i+=2) {
+		    vec4 p(
+			double(quads_[i+1].x),
+			double(quads_[i+1].y),
+			double(quads_[i+1].z),
+			1.0
+		    );
+
+		    vec4 p_xformed= modelview*p;
+
+		    vec4 n(
+			double(quads_[i].x),
+			double(quads_[i].y),
+			double(quads_[i].z),
+			0.0
+		    );
+
+		    vec4 n_xformed = modelview_inv_t * n;
+
+		    quads_[i+1].x = float(p_xformed.x / p_xformed.w);
+		    quads_[i+1].y = float(p_xformed.y / p_xformed.w);
+		    quads_[i+1].z = float(p_xformed.z / p_xformed.w);
+
+		    quads_[i].x = float(n_xformed.x);
+		    quads_[i].y = float(n_xformed.y);
+		    quads_[i].z = float(n_xformed.z);
+		}
+		quads_pointer_ = quads_.size();
+	    }
+
+	    /**
+	     * \brief needs to be called at the end of each frame.
+	     * \details In transparent mode, sorts and draws all the stored
+	     *  transparent quads in back to front order.
+	     */
+	    void end_frame() {
+
+		if(!transparent_) {
+		    return;
+		}
+
+		index_t nb_quads = quads_.size()/8;
+
+		// sort the quads in back to front order
+		quads_order_.resize(nb_quads);
+		for(index_t i=0; i<quads_order_.size(); ++i) {
+		    quads_order_[i] = i;
+		}
+
+		std::sort(
+		    quads_order_.begin(), quads_order_.end(),
+		    [this](index_t i, index_t j)->bool{
+			// compares the avg depth of both quads
+			float z1 =
+			    quads_[8*i+1].z +
+			    quads_[8*i+3].z +
+			    quads_[8*i+5].z +
+			    quads_[8*i+7].z ;
+			float z2 =
+			    quads_[8*j+1].z +
+			    quads_[8*j+3].z +
+			    quads_[8*j+5].z +
+			    quads_[8*j+7].z ;
+			return (z1 < z2);
+		    }
+		);
+
+		// set ModelView matrix to identity (quads are
+		// pre-transformed)
+		glupMatrixMode(GLUP_MODELVIEW_MATRIX);
+		glupPushMatrix();
+		glupLoadIdentity();
+
+		// draw the quads in back to front order
+		// (glupPrivateXXX are just faster inline versions of glupXXX)
+		glupBegin(GLUP_QUADS);
+		for(index_t i=0; i<quads_order_.size(); i++) {
+		    index_t q = quads_order_[i];
+		    glupPrivateNormal3fv(quads_[8*q  ].data());
+		    glupPrivateVertex3fv(quads_[8*q+1].data());
+		    glupPrivateNormal3fv(quads_[8*q+2].data());
+		    glupPrivateVertex3fv(quads_[8*q+3].data());
+		    glupPrivateNormal3fv(quads_[8*q+4].data());
+		    glupPrivateVertex3fv(quads_[8*q+5].data());
+		    glupPrivateNormal3fv(quads_[8*q+6].data());
+		    glupPrivateVertex3fv(quads_[8*q+7].data());
+		}
+		glupEnd();
+
+		// restore ModelView matrix
+		glupPopMatrix();
+	    }
+
+	private:
+	    vector<vec3f> quads_;
+	    vector<index_t> quads_order_;
+	    index_t quads_pointer_;
+	    bool transparent_;
+	};
 
     private:
         double time_;
@@ -396,6 +598,8 @@ namespace {
 
         bool bend_cylinder_;
         bool textured_;
+
+	QuadsBuffer quads_;
     };
 
     /**
@@ -496,12 +700,12 @@ namespace {
                 sphere_.set_textured(textured_);
             }
 
-            /*
-              ImGui::Checkbox("transparent", &transparent_);
-              if(transparent_) {
-              ImGui::SliderFloat("opac.", &alpha_, 0.0f, 1.0f, "%.2f");
-              }
-            */
+	    ImGui::Checkbox("transparent", &transparent_);
+	    if(transparent_) {
+		ImGui::SliderFloat("opac.", &alpha_, 0.0f, 1.0f, "%.2f");
+	    }
+	    sphere_.set_transparent(transparent_);
+
             ImGui::Checkbox("cylinder", &bend_cylinder_);
             ImGui::Tooltip(
                 "display sphere<->cylinder morph\n"
@@ -544,6 +748,8 @@ namespace {
 
             if(transparent_) {
                 glEnable(GL_BLEND);
+                glBlendEquation(GL_FUNC_ADD);
+                glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
                 sphere_.set_alpha(alpha_);
             } else {
                 glDisable(GL_BLEND);
@@ -607,7 +813,7 @@ namespace {
                 ImGui::Text("\n");
                 float sz = float(280.0 * std::min(scaling(), 2.0));
                 ImGui::Image(
-                    convert_to_ImTextureID(geogram_logo_texture_),
+                    static_cast<ImTextureID>(geogram_logo_texture_),
                     ImVec2(sz, sz)
                 );
                 ImGui::Text("\n");

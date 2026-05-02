@@ -197,7 +197,7 @@ namespace GEO {
         );
         vector<bool> is_sliver(delaunay->nb_cells());
 
-        static const index_t NO_POLE = index_t(-1);
+        static constexpr index_t NO_POLE = NO_INDEX;
         // Index of incident tet whose circumcenter is the pole
         vector<index_t> positive_pole(delaunay->nb_vertices(),NO_POLE);
         vector<index_t> negative_pole(delaunay->nb_vertices(),NO_POLE);
@@ -240,14 +240,14 @@ namespace GEO {
             if(is_sliver[t]) {
                 continue;
             }
-            signed_index_t f_inf = -1;
+            index_t f_inf = NO_INDEX;
             for(index_t f = 0; f < 4; f++) {
-                if(delaunay->cell_adjacent(t, f) == -1) {
-                    f_inf = signed_index_t(f);
+                if(delaunay->cell_adjacent(t, f) == NO_INDEX) {
+                    f_inf = index_t(f);
                     break;
                 }
             }
-            if(f_inf == -1) {
+            if(f_inf == NO_INDEX) {
                 // tet t does not have facet on border
                 const vec3& c = circumcenter[t];
                 for(index_t lv = 0; lv < 4; lv++) {
@@ -278,7 +278,7 @@ namespace GEO {
             }
             bool t_is_infinite = false;
             for(index_t f = 0; f < 4; f++) {
-                if(delaunay->cell_adjacent(t, f) == -1) {
+                if(delaunay->cell_adjacent(t, f) == NO_INDEX) {
                     t_is_infinite = true;
                     break;
                 }

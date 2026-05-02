@@ -31,7 +31,7 @@ set(GEOGRAM_WITH_EMSCRIPTEN TRUE)
 # Warning flags
 set(NORMAL_WARNINGS
     -Wall -Wextra
-    -Wno-extra-semi-stmt 
+    -Wno-extra-semi-stmt
     -Wno-unused-command-line-argument
     -Wno-reserved-identifier
     -Wno-format
@@ -59,8 +59,8 @@ set(FULL_WARNINGS
     -Wno-unused-but-set-variable
 )
 
-# Activate c++ 2017
-add_flags(CMAKE_CXX_FLAGS -std=c++17 -Wno-c++98-compat -Wno-gnu-zero-variadic-macro-arguments)
+# Additional C++ flags
+add_flags(CMAKE_CXX_FLAGS -Wno-c++98-compat -Wno-gnu-zero-variadic-macro-arguments)
 
 # Compile with full warnings by default
 add_definitions(${FULL_WARNINGS})
@@ -76,13 +76,16 @@ endif()
 # Note: they are added to CMAKE CXX and C flags later on, because the
 # way add_flags() works may remove the second "-s" argument.
 # Note: TOTAL_MEMORY needs to be a multiple of 16M
+#       Ugly define to make main() kept alive (without it I think it is
+#       seen as a C++ function with a mangled name that does not match
+#       the name in EXPORTED_FUNCTIONS).
 set(EM_COMMON_FLAGS
   -sUSE_GLFW=3
 # -sUSE_WEBGL2=1 -DGEO_WEBGL2
   -sTOTAL_MEMORY=268435456
   -sEXPORTED_FUNCTIONS='["_main","_file_system_changed_callback"]'
   -sEXPORTED_RUNTIME_METHODS='["ccall"]'
-# -sNO_DISABLE_EXCEPTION_CATCHING
+  -Dmain="EMSCRIPTEN_KEEPALIVE main"
 )
 set(EM_FLAGS_RELEASE -O3  ${EM_COMMON_FLAGS})
 set(EM_FLAGS_DEBUG -O2 -s ASSERTIONS=2 -s SAFE_HEAP=1 -g ${EM_COMMON_FLAGS})
@@ -102,11 +105,11 @@ endif()
 if(VORPALINE_WITH_ASAN)
     message(FATAL_ERROR "Address sanitizer not supported with Emscripten")
 endif()
-  
+
 if(NOT VORPALINE_WITH_ASAN)
   # Use native GCC stack smash Protection
   # and buffer overflow detection (debug only)
-# stack protector causes undefined symbols at link time (deactivated for now).  
+# stack protector causes undefined symbols at link time (deactivated for now).
 #    add_flags(CMAKE_CXX_FLAGS_DEBUG -fstack-protector-all)
 #    add_flags(CMAKE_C_FLAGS_DEBUG -fstack-protector-all)
 endif()
@@ -119,8 +122,8 @@ endif()
 
 # Compilation flags for ALinea DDT
 if(VORPALINE_WITH_DDT)
-    message(FATAL_ERROR "Alinea DDT not supported with Emscripten")  
-endif()  
+    message(FATAL_ERROR "Alinea DDT not supported with Emscripten")
+endif()
 
 
 # We only add the Emscripten flags here, because:
@@ -150,4 +153,3 @@ endfunction()
 macro(vor_add_executable)
     add_executable(${ARGN})
 endmacro()
-

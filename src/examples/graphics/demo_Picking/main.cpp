@@ -124,7 +124,7 @@ namespace {
 
                 index_t first_v = mesh_.vertices.create_vertices(12);
                 for(index_t v=0; v<12; ++v) {
-                    Geom::mesh_vertex_ref(mesh_,first_v+v) =
+                    mesh_.vertices.point(first_v+v) =
                         vec3(points[3*v], points[3*v+1], points[3*v+2]) ;
                 }
 
@@ -165,7 +165,9 @@ namespace {
             ImGui::Checkbox("##VertOnOff", &show_vertices_);
             ImGui::SameLine();
             ImGui::ColorEdit3WithPalette("Vertices", vertices_color_.data());
-            ImGui::SliderFloat("Vertex size", &vertices_size_, 0.1f, 5.0f, "%.1f");
+            ImGui::SliderFloat(
+		"Vertex size", &vertices_size_, 0.1f, 5.0f, "%.1f"
+	    );
 
             ImGui::Checkbox("##MeshOnOff", &show_mesh_);
             ImGui::SameLine();
@@ -182,13 +184,24 @@ namespace {
 
             if (ImGui::BeginCombo("Picking mode",mesh_element_str_.c_str()))
             {
-                // only suggest values accepted by GEO::MeshGfx::set_picking_mode()
+                // only suggest values accepted by
+		// GEO::MeshGfx::set_picking_mode()
+
                 if (ImGui::Selectable(
                         subelements_type_to_name(MESH_NONE).c_str(),
                         mesh_element_ == MESH_NONE)
                    ) {
                     mesh_element_ = MESH_NONE;
                     mesh_element_str_ = subelements_type_to_name(mesh_element_);
+                }
+                if (ImGui::Selectable(
+                        subelements_type_to_name(MESH_EDGES).c_str(),
+                        mesh_element_ == MESH_EDGES)
+                   ) {
+                    mesh_element_ = MESH_EDGES;
+                    mesh_element_str_ = subelements_type_to_name(mesh_element_);
+                    show_vertices_ = false;
+                    show_mesh_ = true;
                 }
                 if (ImGui::Selectable(
                         subelements_type_to_name(MESH_VERTICES).c_str(),
@@ -229,7 +242,9 @@ namespace {
             // double to integer conversion of current cursor position
             index_t x = index_t(pos.x);
             index_t y = index_t(pos.y);
-            if(x >= get_width() || y >= get_height()) { // if cursor out of the window
+
+            // if cursor out of the window
+            if(x >= get_width() || y >= get_height()) {
                 return;
             }
 
@@ -288,7 +303,9 @@ namespace {
                 pick(cursor_pos_);
                 return;
             }
-            SimpleMeshApplication::mouse_button_callback(button,action,mods,source);
+            SimpleMeshApplication::mouse_button_callback(
+		button,action,mods,source
+	    );
         }
 
         static std::string subelements_type_to_name(MeshElementsFlags what) {

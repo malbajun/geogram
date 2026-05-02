@@ -103,6 +103,9 @@ namespace GEO {
         /** \brief Pointer to unsigned byte(s) */
         typedef byte* pointer;
 
+        /** \brief Const pointer to unsigned byte(s) */
+        typedef const byte* const_pointer;
+
         /** \brief Generic function pointer */
         typedef void (*function_pointer)();
 
@@ -136,12 +139,12 @@ namespace GEO {
          *  and generic pointers using casts. Such conversion may be
          *  required when retrieving symbols in dynamically linked libraries,
          *  or when interfacing with scripting languages.
+	 * \tparam FPTR function pointer type
          * \param[in] fptr the function pointer
          * \return a generic pointer with the same address as \p fptr
          */
-        inline pointer function_pointer_to_generic_pointer(
-            function_pointer fptr
-        ) {
+	template <class FPTR=function_pointer>
+	inline pointer function_pointer_to_generic_pointer(FPTR fptr) {
             // I know this is ugly, but I did not find a simpler warning-free
             // way that is portable between all compilers.
             pointer result = nullptr;
@@ -155,15 +158,15 @@ namespace GEO {
          *  and generic pointers using casts. Such conversion may be required
          *  when retrieving symbols in dynamically linked libraries, or when
          *  interfacing with scripting languages.
+	 * \tparam FPTR function pointer type
          * \param[in] ptr the generic pointer
          * \return a function pointer with the same address as \p ptr
          */
-        inline function_pointer generic_pointer_to_function_pointer(
-            pointer ptr
-        ) {
+        template <class FPTR = function_pointer>
+	inline FPTR generic_pointer_to_function_pointer(pointer ptr) {
             // I know this is ugly, but I did not find a simpler warning-free
             // way that is portable between all compilers.
-            function_pointer result = nullptr;
+            FPTR result = nullptr;
             ::memcpy(&result, &ptr, sizeof(pointer));
             return result;
         }
@@ -174,16 +177,56 @@ namespace GEO {
          *  and generic pointers using casts. Such conversion may be
          *  required when retrieving symbols in dynamically linked libraries,
          *  or when interfacing with scripting languages.
+	 * \tparam FPTR function pointer type
          * \param[in] ptr the generic pointer
          * \return a function pointer with the same address as \p ptr
          */
-        inline function_pointer generic_pointer_to_function_pointer(void* ptr) {
+        template <class FPTR = function_pointer>
+        inline FPTR generic_pointer_to_function_pointer(void* ptr) {
             // I know this is ugly, but I did not find a simpler warning-free
             // way that is portable between all compilers.
-            function_pointer result = nullptr;
+            FPTR result = nullptr;
             ::memcpy(&result, &ptr, sizeof(pointer));
             return result;
         }
+
+
+	/**
+	 * \brief Converts a pointer to a reference
+	 * \tparam T the type for the reference
+	 * \param[in] ptr the pointer
+	 * \return a reference of type T&
+	 */
+	template <class T> inline T& pointer_as_reference(void* ptr) {
+	    // This is the recommended way of converting between pointers
+	    // of different types. Casting the pointer directly is undefined
+	    // behavior. Note: the call to memcpy() is eliminated by the
+	    // compiler (that generates the same thing as when casting the
+	    // pointer).
+	    T* T_ptr;
+	    ::memcpy(&T_ptr, &ptr, sizeof(pointer));
+	    return *T_ptr;
+	}
+
+	/**
+	 * \brief Converts a const pointer to a reference
+	 * \tparam T the type for the reference
+	 * \param[in] ptr the pointer
+	 * \return a const reference of type const T&
+	 */
+	template <class T> inline const T& pointer_as_reference(
+	    const void* ptr
+	) {
+	    // This is the recommended way of converting between pointers
+	    // of different types. Casting the pointer directly is undefined
+	    // behavior. Note: the call to memcpy() is eliminated by the
+	    // compiler (that generates the same thing as when casting the
+	    // pointer).
+	    const T* T_ptr;
+	    ::memcpy(&T_ptr, &ptr, sizeof(pointer));
+	    return *T_ptr;
+	}
+
 
         /**
          * \brief Default memory alignment for efficient vector operations
@@ -360,6 +403,7 @@ namespace GEO {
          * geo_assume_aligned(p,alignment);
          * \endcode
          * \note Memory alignment is not supported under Android.
+	 * \note C++20 has std::assume_aligned()
          */
 #if   defined(GEO_OS_ANDROID)
 #define geo_assume_aligned(var, alignment)
@@ -476,15 +520,27 @@ namespace GEO {
             /** \brief Difference between two pointers */
             typedef ::std::ptrdiff_t difference_type;
 
+	    /** \brief Alignment in bytes */
+	    static constexpr int ALIGNMENT = ALIGN;
+
             /**
              * \brief Defines the same allocator for other types
              * \tparam U type of the elements to allocate
              */
             template <class U>
             struct rebind {
-                /** Equivalent allocator type to allocate elements of type \p U*/
-                typedef aligned_allocator<U> other;
+                /**Equivalent allocator type to allocate elements of type \p U*/
+                typedef aligned_allocator<U,ALIGN> other;
             };
+
+            /* \brief default constructor */
+            constexpr aligned_allocator() noexcept = default;
+
+            /* \brief conversion copy constructor */
+            template <class U, int A2> constexpr aligned_allocator(
+		const aligned_allocator<U, A2>&
+	    ) noexcept {
+	    }
 
             /**
              * \brief Gets the address of an object
@@ -513,7 +569,7 @@ namespace GEO {
              * The storage is aligned on ALIGN bytes, but they are \b not
              * constructed.
              * \param[in] nb_elt number of elements to allocate
-             * \param[in] hint Either 0 or a valer 0 or a value previously
+             * \param[in] hint Either 0 or a value previously
              * obtained by another call to allocate and not yet freed with
              * deallocate. When it is not 0, this value may be used as a hint
              * to improve performance by allocating the new block near the one
@@ -524,11 +580,31 @@ namespace GEO {
             pointer allocate(
                 size_type nb_elt, const void* hint = nullptr
             ) {
+		nb_elt = std::max(nb_elt,size_type(1));
                 geo_argused(hint);
-                pointer result = static_cast<pointer>(
-                    aligned_malloc(sizeof(T) * nb_elt, ALIGN)
-                );
-                return result;
+		while(true) {
+		    pointer result = static_cast<pointer>(
+			aligned_malloc(sizeof(T) * nb_elt, ALIGNMENT)
+		    );
+		    if(result != nullptr) {
+			return result;
+		    }
+		    // under Linux, a process requesting more mem than available
+		    // is killed (and there is nothing we can capture). Under
+		    // other OSes, the standard mechanism to let the runtime
+		    // know is as follows:
+		    // see: https://stackoverflow.com/questions/7194127/
+		    // how-should-i-write-iso-c-standard-conformant-custom-
+		    // new-and-delete-operators
+		    // (if there is a handler, call it repeatedly until
+		    // allocation succeeds, else throw a bad_alloc exception)
+		    std::new_handler handler = std::get_new_handler();
+		    if(handler != nullptr) {
+			(*handler)();
+		    } else {
+			throw std::bad_alloc();
+		    }
+		}
             }
 
             /**
@@ -555,7 +631,8 @@ namespace GEO {
              */
             size_type max_size() const {
                 ::std::allocator<char> a;
-                return std::allocator_traits<decltype(a)>::max_size(a) / sizeof(T);
+                return std::allocator_traits<decltype(a)>::max_size(a) /
+		    sizeof(T);
             }
 
             /**
@@ -583,10 +660,8 @@ namespace GEO {
              * \see deallocate()
              */
             void destroy(pointer p) {
+		geo_argused(p); // else MSVC complains
                 p->~value_type();
-#ifdef GEO_COMPILER_MSVC
-                (void) p; // to avoid a "unreferenced variable" warning
-#endif
             }
 
             /**
@@ -634,9 +709,16 @@ namespace GEO {
     template <class T>
     class vector : public ::std::vector<T, Memory::aligned_allocator<T> > {
         /**
+         * \brief Shortcut to the allocator type.
+         */
+	typedef Memory::aligned_allocator<T> allocator;
+
+        /**
          * \brief Shortcut to the base class type
          */
         typedef ::std::vector<T, Memory::aligned_allocator<T> > baseclass;
+
+
 
     public:
         /**
@@ -772,7 +854,13 @@ namespace GEO {
          * \return a pointer to the first element of the vector
          */
         T* data() {
-            return size() == 0 ? nullptr : &(*this)[0];
+            T* result = baseclass::data();
+	    // Tell the compiler that the pointer is aligned, to enable AVX
+	    // vectorization, can be useful when using vector<double>
+	    // with blas-like operations. I hope the hint will propagate to
+	    // the caller (not sure...)
+	    geo_assume_aligned(result, allocator::ALIGNMENT);
+	    return result;
         }
 
         /**
@@ -780,9 +868,25 @@ namespace GEO {
          * \return a const pointer to the first element of the vector
          */
         const T* data() const {
-            return size() == 0 ? nullptr : &(*this)[0];
+            const T* result = baseclass::data();
+	    // Tell the compiler that the pointer is aligned, to enable AVX
+	    // vectorization, can be useful when using vector<double>
+	    // with blas-like operations. I hope the hint will propagate to
+	    // the caller (not sure...)
+	    geo_assume_aligned(result, allocator::ALIGNMENT);
+	    return result;
         }
 
+
+	/**
+	 * \brief Resizes this vector to zero and deallocated
+	 *  all the memory.
+	 * \details clear() does not deallocate.
+	 */
+	void clear_and_deallocate() {
+	    vector<T> other;
+	    this->swap(other);
+	}
     };
 
     /**

@@ -58,6 +58,8 @@
 #endif
 
 
+#include <geogram_gfx/gui/application.h>
+
 #include <geogram/basic/string.h>
 #include <geogram/basic/logger.h>
 #include <geogram/basic/file_system.h>
@@ -82,7 +84,7 @@ namespace {
      * \retval false otherwise
      */
     bool ColorEdit3or4WithPalette(
-        const char* label, float* color_in, bool with_alpha
+        const char* label, float color_in[], bool with_alpha
     ) {
         bool result = false;
         static bool saved_palette_initialized = false;
@@ -91,7 +93,8 @@ namespace {
         ImGui::PushID(label);
         int flags =
             ImGuiColorEditFlags_PickerHueWheel |
-            ImGuiColorEditFlags_Float;
+            ImGuiColorEditFlags_Float |
+	    ImGuiColorEditFlags_AlphaOpaque ;
 
         if(!with_alpha) {
             flags |= ImGuiColorEditFlags_NoAlpha ;
@@ -100,12 +103,6 @@ namespace {
         ImVec4& color = *(ImVec4*)color_in;
 
         if (!saved_palette_initialized) {
-
-            for (int n = 0; n < 8; n++) {
-                saved_palette[n].x = 0.0f;
-                saved_palette[n].y = 0.0f;
-                saved_palette[n].z = 0.0f;
-            }
 
             saved_palette[0] = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
             saved_palette[1] = ImVec4(0.5f, 0.5f, 0.5f, 1.0f);
@@ -123,6 +120,7 @@ namespace {
                     saved_palette[n+8].y,
                     saved_palette[n+8].z
                 );
+		saved_palette[n+8].w = 1.0f;
             }
             saved_palette_initialized = true;
         }
@@ -993,27 +991,27 @@ namespace {
 namespace ImGui {
 
     float scaling() {
-        ImGuiContext& g = *GImGui;
+	float fs = ImGui::GetFontSize();
         float s = 1.0;
-        if(g.Font->FontSize > 40.0f) {
-            s = g.Font->FontSize / 30.0f;
+        if(fs > 40.0f) {
+            s = fs / 30.0f;
         } else {
-            s = g.Font->FontSize / 20.0f;
+            s = fs / 20.0f;
         }
-        return s * ImGui::GetIO().FontGlobalScale;
+        return s * Application::instance()->get_font_global_scale();
     }
 
     void set_scaling(float x) {
-        ImGui::GetIO().FontGlobalScale = x;
+	Application::instance()->set_font_global_scale(x);
     }
 
     /*******************************************************************/
 
-    bool ColorEdit3WithPalette(const char* label, float* color_in) {
+    bool ColorEdit3WithPalette(const char* label, float color_in[3]) {
         return ColorEdit3or4WithPalette(label, color_in, false);
     }
 
-    bool ColorEdit4WithPalette(const char* label, float* color_in) {
+    bool ColorEdit4WithPalette(const char* label, float color_in[4]) {
         return ColorEdit3or4WithPalette(label, color_in, true);
     }
 
@@ -1096,6 +1094,10 @@ namespace ImGui {
             str = str.substr(0, off);
         }
         ImVec2 label_size = ImGui::CalcTextSize(str.c_str(), NULL, true);
+	return ImGui::SimpleButton(label, label_size);
+    }
+
+    bool SimpleButton(const char* label, const ImVec2& label_size) {
         return ImGui::Selectable(label, false, 0, label_size);
     }
 
@@ -1109,4 +1111,19 @@ namespace ImGui {
         ImGui::SameLine();
         ImGui::Text("%s",text);
     }
+
+    /****************************************************************/
+
+    void PushFont(ImFont* font) {
+	for(int i=0; i<ImGui::GetIO().Fonts->Fonts.size(); ++i) {
+	    if(font == ImGui::GetIO().Fonts->Fonts[i]) {
+		ImGui::PushFont(
+		    font, Application::instance()->get_font_size(index_t(i))
+		);
+		return;
+	    }
+	}
+	geo_assert_not_reached;
+    }
+
 }

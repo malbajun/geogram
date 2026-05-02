@@ -66,11 +66,13 @@ typedef double GLdouble;
 #  include <GLES3/gl32.h>
 #  define GEO_GL_TEXTURE_3D
 #  define GEO_GL_ES2
+#  define GEO_GL_140
 #  define GEO_GL_150
 #  define GEO_GL_NO_DOUBLES
 #else
 #  include <geogram_gfx/third_party/glad/glad.h>
 #  define GEO_GL_TEXTURE_3D
+#  define GEO_GL_140
 #  define GEO_GL_150
 #  define GEO_GL_440
 #  define GEO_GL_ES2
@@ -342,17 +344,27 @@ namespace GEO {
     void GEOGRAM_GFX_API clear_gl_error_flags(const char* file, int line);
 
     /**
+     * \brief Constants for draw_unit_textured_quad()
+     */
+    enum TexturedQuadMode { TEX_QUAD_RGBA, TEX_QUAD_RRR1, TEX_QUAD_DEPTH };
+
+    /**
      * \brief Draws a textured quad.
-     * \param[in] BW if set, copy the red channel to the output red, green
-     *  blue channels (and set alpha to 1.0).
+     * \param[in] mode of of
+     *   - TEX_QUAD_RGBA  copy input texture to color
+     *   - TEX_QUAD_RRR1  copy red channel to r,g,b and set alpha to 1
+     *   - TEX_QUAD_DEPTH copy red channel to depth.
      * \details The textured quad spans the [-1,1]x[-1,1] square with
      *  texture coordinates in [0,1]x[0,1]. If no program is currently
      *  bound, then a default one is used, and it uses the texture bound
      *  to unit 0 of GL_TEXTURE_2D. If a program is bound, then it is used.
      *  Vertices coordinates are sent to vertex attribute 0 and texture
-     *  coordinates to vertex attribute 1.
+     *  coordinates to vertex attribute 1. To use TEX_QUAD_DEPTH, one needs to
+     *  enable GL_DEPTH_TEST.
      */
-    void GEOGRAM_GFX_API draw_unit_textured_quad(bool BW=false);
+    void GEOGRAM_GFX_API draw_unit_textured_quad(
+	TexturedQuadMode mode = TEX_QUAD_RGBA
+    );
 
     /**
      * \brief Tests for OpenGL errors.

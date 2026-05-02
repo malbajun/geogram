@@ -40,13 +40,37 @@
 #include <geogram_gfx/lua/lua_imgui.h>
 #include <geogram_gfx/imgui_ext/imgui_ext.h>
 #include <geogram_gfx/imgui_ext/icon_font.h>
+
+
+#ifdef GEO_COMPILER_GCC_FAMILY
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wfloat-conversion"
+#endif
+
+// Missing prototype in imoguizmo (slicences a warning)
+namespace ImOGuizmo {
+   namespace internal {
+      struct ImVec3;
+      void lookAt(ImVec3 const& eye, ImVec3 const& at, ImVec3 const& up, float* viewMatrix);
+   }
+}
+
+#include <geogram_gfx/third_party/imoguizmo/imoguizmo.hpp>
+
+#ifdef GEO_COMPILER_GCC_FAMILY
+#pragma GCC diagnostic pop
+#endif
+
 #include <geogram/lua/lua_wrap.h>
 #include <geogram/basic/string.h>
 #include <geogram/basic/logger.h>
 #include <map>
 
-extern void LoadImguiBindings();
-extern lua_State* lState;
+#include <geogram_gfx/third_party/imgui_lua_bindings_gomgen/luawrap_runtime.h>
+
+extern void LoadImGuiBindings(lua_State* L);
+extern void LoadImDrawListBindings(lua_State* L);
+
 
 namespace {
     using namespace GEO;
@@ -179,31 +203,36 @@ namespace {
     ) {
         if(lua_gettop(L) != 4) {
             return luaL_error(
-                L, "'imgui.ColorEdit3WithPalette()' invalid number of arguments"
+                L,
+		"'imgui.ColorEdit3WithPalette()' invalid number of arguments"
             );
         }
 
         if(!lua_isstring(L,1)) {
             return luaL_error(
-                L, "'imgui.ColorEdit3WithPalette()' argument 1 should be a string"
+                L,
+		"'imgui.ColorEdit3WithPalette()' argument 1 should be a string"
             );
         }
 
         if(!lua_isnumber(L,2)) {
             return luaL_error(
-                L, "'imgui.ColorEdit3WithPalette()' argument 2 should be a number"
+                L,
+		"'imgui.ColorEdit3WithPalette()' argument 2 should be a number"
             );
         }
 
         if(!lua_isnumber(L,3)) {
             return luaL_error(
-                L, "'imgui.ColorEdit3WithPalette()' argument 3 should be a number"
+                L,
+		"'imgui.ColorEdit3WithPalette()' argument 3 should be a number"
             );
         }
 
         if(!lua_isnumber(L,4)) {
             return luaL_error(
-                L, "'imgui.ColorEdit3WithPalette()' argument 4 should be a number"
+                L,
+		"'imgui.ColorEdit3WithPalette()' argument 4 should be a number"
             );
         }
 
@@ -231,37 +260,43 @@ namespace {
     ) {
         if(lua_gettop(L) != 5) {
             return luaL_error(
-                L, "'imgui.ColorEdit3WithPalette()' invalid number of arguments"
+                L,
+		"'imgui.ColorEdit3WithPalette()' invalid number of arguments"
             );
         }
 
         if(!lua_isstring(L,1)) {
             return luaL_error(
-                L, "'imgui.ColorEdit3WithPalette()' argument 1 should be a string"
+                L,
+		"'imgui.ColorEdit3WithPalette()' argument 1 should be a string"
             );
         }
 
         if(!lua_isnumber(L,2)) {
             return luaL_error(
-                L, "'imgui.ColorEdit3WithPalette()' argument 2 should be a number"
+                L,
+		"'imgui.ColorEdit3WithPalette()' argument 2 should be a number"
             );
         }
 
         if(!lua_isnumber(L,3)) {
             return luaL_error(
-                L, "'imgui.ColorEdit3WithPalette()' argument 3 should be a number"
+                L,
+		"'imgui.ColorEdit3WithPalette()' argument 3 should be a number"
             );
         }
 
         if(!lua_isnumber(L,4)) {
             return luaL_error(
-                L, "'imgui.ColorEdit3WithPalette()' argument 4 should be a number"
+                L,
+		"'imgui.ColorEdit3WithPalette()' argument 4 should be a number"
             );
         }
 
         if(!lua_isnumber(L,5)) {
             return luaL_error(
-                L, "'imgui.ColorEdit3WithPalette()' argument 5 should be a number"
+                L,
+		"'imgui.ColorEdit3WithPalette()' argument 5 should be a number"
             );
         }
 
@@ -376,133 +411,6 @@ namespace {
         return 2;
     }
 
-    int wrapper_SetNextWindowPos(lua_State* L) {
-        if(
-            lua_gettop(L) != 2 &&
-            lua_gettop(L) != 3
-        ) {
-            return luaL_error(
-                L, "'imgui.SetNextWindowPos()' invalid number of arguments"
-            );
-        }
-
-        if(!lua_isnumber(L,1)) {
-            return luaL_error(
-                L, "'imgui.SetNextWindowPos()' argument 1 should be a number"
-            );
-        }
-
-        if(!lua_isnumber(L,2)) {
-            return luaL_error(
-                L, "'imgui.SetNextWindowPos()' argument 2 should be a number"
-            );
-        }
-
-        ImGuiCond cond = 0;
-        if(lua_gettop(L) == 3) {
-            if(!lua_isnumber(L,3)) {
-                return luaL_error(
-                    L,
-                    "'imgui.SetNextWindowPos()' argument 3 should be a number"
-                );
-            }
-            cond = ImGuiCond(lua_tonumber(L,3));
-        }
-
-
-        ImGui::SetNextWindowPos(
-            ImVec2(float(lua_tonumber(L,1)), float(lua_tonumber(L,2))),
-            cond
-        );
-
-        return 0;
-    }
-
-    int wrapper_SetNextWindowSize(lua_State* L) {
-        if(
-            lua_gettop(L) != 2 &&
-            lua_gettop(L) != 3
-        ) {
-            return luaL_error(
-                L, "'imgui.SetNextWindowSize()' invalid number of arguments"
-            );
-        }
-
-        if(!lua_isnumber(L,1)) {
-            return luaL_error(
-                L, "'imgui.SetNextWindowSize()' argument 1 should be a number"
-            );
-        }
-
-        if(!lua_isnumber(L,2)) {
-            return luaL_error(
-                L, "'imgui.SetNextWindowSize()' argument 2 should be a number"
-            );
-        }
-
-        ImGuiCond cond = 0;
-        if(lua_gettop(L) == 3) {
-            if(!lua_isnumber(L,3)) {
-                return luaL_error(
-                    L,
-                    "'imgui.SetNextWindowSize()' argument 3 should be a number"
-                );
-            }
-            cond = ImGuiCond(lua_tonumber(L,3));
-        }
-
-
-        ImGui::SetNextWindowSize(
-            ImVec2(float(lua_tonumber(L,1)), float(lua_tonumber(L,2))),
-            cond
-        );
-
-        return 0;
-    }
-
-
-    int wrapper_IsItemHovered(lua_State* L) {
-        if(lua_gettop(L) != 0) {
-            return luaL_error(
-                L, "'imgui.IsItemHovered()' invalid number of arguments"
-            );
-        }
-        lua_pushboolean(L,ImGui::IsItemHovered());
-        return 1;
-    }
-
-    int wrapper_Text(lua_State* L) {
-        if(lua_gettop(L) < 1) {
-            return luaL_error(
-                L, "'imgui.Text()' invalid number of arguments"
-            );
-        }
-        const char* str = lua_tostring(L,1);
-        ImGui::Text("%s",str);
-        return 0;
-    }
-
-    int wrapper_SetTooltip(lua_State* L) {
-        if(lua_gettop(L) != 1) {
-            return luaL_error(
-                L, "'imgui.SetTooltip()' invalid number of arguments"
-            );
-        }
-        const char* str = lua_tostring(L,1);
-        ImGui::SetTooltip("%s",str);
-        return 0;
-    }
-
-    int wrapper_ShowStyleEditor(lua_State* L) {
-        if(lua_gettop(L) != 0) {
-            return luaL_error(
-                L, "'imgui.ShowStyleEditor()' invalid number of arguments"
-            );
-        }
-        ImGui::ShowStyleEditor(nullptr);
-        return 0;
-    }
-
     int wrapper_PushFont(lua_State* L) {
         if(lua_gettop(L) != 1) {
             return luaL_error(
@@ -544,38 +452,6 @@ namespace {
         return 1;
     }
 
-    int wrapper_BeginTabBar(lua_State* L) {
-        if(lua_gettop(L) != 1) {
-            return luaL_error(
-                L, "'imgui.BeginTabBar()' invalid number of arguments"
-            );
-        }
-        if(!lua_isstring(L,1)) {
-            return luaL_error(
-                L, "'imgui.BeinTabBar()' argument is not a string"
-            );
-        }
-        const char* K = lua_tostring(L,1);
-        ImGui::BeginTabBar(K);
-        return 0;
-    }
-
-    int wrapper_BeginTabItem(lua_State* L) {
-        if(lua_gettop(L) != 1) {
-            return luaL_error(
-                L, "'imgui.BeginTabItem()' invalid number of arguments"
-            );
-        }
-        if(!lua_isstring(L,1)) {
-            return luaL_error(
-                L, "'imgui.BeginTabItem()' argument is not a string"
-            );
-        }
-        const char* K = lua_tostring(L,1);
-        lua_pushboolean(L,ImGui::BeginTabItem(K));
-        return 1;
-    }
-
     int wrapper_SimpleButton(lua_State* L) {
         if(lua_gettop(L) != 1) {
             return luaL_error(
@@ -592,388 +468,115 @@ namespace {
         return 1;
     }
 
-    int wrapper_GetMousePos(lua_State* L) {
-        if(lua_gettop(L) != 0) {
+    int wrapper_SimpleButton2(lua_State* L) {
+        if(lua_gettop(L) != 3) {
             return luaL_error(
-                L, "'imgui.GetMousePos()' invalid number of arguments"
+                L, "'imgui.SimpleButton2()' invalid number of arguments"
             );
         }
-        lua_pushnumber(L,double(ImGui::GetIO().MousePos.x));
-        lua_pushnumber(L,double(ImGui::GetIO().MousePos.y));
-        return 2;
-    }
-
-}
-
-namespace GEO {
-
-    /**
-     * \brief Specialization of lua_push() for ImDrawList*
-     */
-    template<> inline void lua_push(
-        lua_State* L, ImDrawList* x
-    ) {
-        lua_pushlightuserdata(L,(void*)x);
-    }
-
-    /**
-     * \brief lua_to specialization for ImDrawList*
-     */
-    template<> class lua_to<ImDrawList*> {
-    public:
-        lua_to(lua_State* L, int idx) {
-            x_ = (ImDrawList*)(lua_touserdata(L,idx));
+        if(!lua_isstring(L,1)) {
+            return luaL_error(
+                L, "'imgui.SimpleButton2()' argument is not a string"
+            );
         }
-        static bool can_convert(lua_State* L, int idx) {
-            return lua_check_type(L, idx, my_lua_islightuserdata);
+        if(!lua_isnumber(L,2)) {
+            return luaL_error(
+                L, "'imgui.SimpleButton2()' argument is not a number"
+            );
         }
-        operator ImDrawList*() const {
-            return x_;
+        if(!lua_isnumber(L,3)) {
+            return luaL_error(
+                L, "'imgui.SimpleButton2()' argument is not a number"
+            );
         }
-    private:
-        ImDrawList* x_;
-    };
-
-}
-
-// WIP: export all ImGuiDrawList functions to LUA
-
-namespace ImGuiDrawAdapters {
-
-    // Needed by lua_bindwrapper because ImGui::GetBackgroundDrawList()
-    // takes an ImViewport (default = nullptr) as an argunemt.
-    static ImDrawList* GetBackgroundDrawList() {
-        return ImGui::GetBackgroundDrawList();
+        const char* K = lua_tostring(L,1);
+        lua_pushboolean(
+	    L,
+	    ImGui::SimpleButton(
+		K,
+		ImVec2(float(lua_tonumber(L,2)), float(lua_tonumber(L,3))))
+	);
+        return 1;
     }
 
-    // Needed by lua_bindwrapper because ImGui::GetForegroundDrawList()
-    // takes an ImViewport (default = nullptr) as an argunemt.
-    static ImDrawList* GetForegroundDrawList() {
-        return ImGui::GetForegroundDrawList();
+    int wrapper_DrawGizmo(lua_State* L) {
+	if(lua_gettop(L) != 3) {
+            return luaL_error(
+                L, "'ImOGuizmo.DrawGizmo()' invalid number of arguments"
+            );
+	}
+	Matrix<4,float> vm;
+	Matrix<4,float> pm;
+	if(!lua_tomat(L,1,vm)) {
+            return luaL_error(
+                L, "'ImOGuizmo.DrawGizmo()' arg 1 is not a matrix"
+            );
+	}
+	if(!lua_tomat(L,2,pm)) {
+            return luaL_error(
+                L, "'ImOGuizmo.DrawGizmo()' arg 2 is not a matrix"
+	    );
+	}
+	if(!lua_isnumber(L,3)) {
+	    return luaL_error(
+		L, "'imOGuizmo.DrawGizmo()' arg 3 is not a number"
+	    );
+	}
+	float distance = float(lua_tonumber(L,3));
+	bool changed = ImOGuizmo::DrawGizmo(vm.data(), pm.data(), distance);
+	lua_push(L,changed);
+	lua_push(L,vm);
+	return 2;
     }
 
-    static void PushClipRect(
-        ImDrawList* list,
-        float xmin, float ymin,
-        float xmax, float ymax,
-        bool intersect
-    ) {
-        list->PushClipRect(
-            ImVec2(xmin, ymin),
-            ImVec2(xmax, ymax),
-            intersect
-        );
-    }
-
-    static void PushClipRectFullScreen(ImDrawList* list) {
-        list->PushClipRectFullScreen();
-    }
-
-    static void PopClipRect(ImDrawList* list) {
-        list->PopClipRect();
-    }
-
-    static void PushTextureID(ImDrawList* list, index_t id) {
-        union {
-            ImTextureID im_texture_id;
-            index_t gl_texture_id;
-        };
-        gl_texture_id = id;
-        list->PushTextureID(im_texture_id);
-    }
-
-    static void PopTextureID(ImDrawList* list) {
-        list->PopClipRect();
-    }
-
-    static void AddLine(
-        ImDrawList* list, float x1, float y1, float x2, float y2,
-        Numeric::uint32 color, float thickness
-    ) {
-        list->AddLine(
-            ImVec2(x1,y1), ImVec2(x2,y2),
-            color, thickness
-        );
-    }
-
-    static void AddRect(
-        ImDrawList* list,
-        float x1, float y1, float x2, float y2,
-        Numeric::uint32 color, float rounding, int rounding_corners,
-        float thickness
-    ) {
-        list->AddRect(
-            ImVec2(x1,y1), ImVec2(x2,y2), color, rounding,
-            ImDrawFlags(rounding_corners), thickness
-        );
-    }
-
-    static void AddRectFilled(
-        ImDrawList* list,
-        float x1, float y1, float x2, float y2,
-        Numeric::uint32 color, float rounding, int rounding_corners
-    ) {
-        list->AddRectFilled(
-            ImVec2(x1,y1), ImVec2(x2,y2), color, rounding,
-            ImDrawFlags(rounding_corners)
-        );
-    }
-
-    static void AddRectFilledMultiColor(
-        ImDrawList* list,
-        float x1, float y1, float x2, float y2,
-        Numeric::uint32 color1,    Numeric::uint32 color2,
-        Numeric::uint32 color3,    Numeric::uint32 color4
-    ) {
-        list->AddRectFilledMultiColor(
-            ImVec2(x1,y1), ImVec2(x2,y2),
-            color1, color2, color3, color4
-        );
-    }
-
-    static void AddQuad(
-        ImDrawList* list,
-        float x1, float y1, float x2, float y2,
-        float x3, float y3, float x4, float y4,
-        Numeric::uint32 color,
-        float thickness
-    ) {
-        list->AddQuad(
-            ImVec2(x1,y1), ImVec2(x2,y2), ImVec2(x3,y3), ImVec2(x4,y4),
-            color, thickness
-        );
-    }
-
-    static void AddQuadFilled(
-        ImDrawList* list, float x1, float y1, float x2, float y2,
-        float x3, float y3, float x4, float y4,    Numeric::uint32 color
-    ) {
-        list->AddQuad(
-            ImVec2(x1,y1), ImVec2(x2,y2), ImVec2(x3,y3), ImVec2(x4,y4), color
-        );
-    }
-
-    static void AddTriangle(
-        ImDrawList* list, float x1, float y1, float x2, float y2,
-        float x3, float y3, Numeric::uint32 color, float thickness
-    ) {
-        list->AddTriangle(
-            ImVec2(x1,y1), ImVec2(x2,y2), ImVec2(x3,y3), color, thickness
-        );
-    }
-
-    static void AddTriangleFilled(
-        ImDrawList* list, float x1, float y1, float x2, float y2,
-        float x3, float y3, Numeric::uint32 color
-    ) {
-        list->AddTriangleFilled(ImVec2(x1,y1), ImVec2(x2,y2), ImVec2(x3,y3), color);
-    }
-
-    static void AddCircle(
-        ImDrawList* list, float x, float y, float radius, Numeric::uint32 color,
-        int num_segments, float thickness
-    ) {
-        list->AddCircle(ImVec2(x,y), radius, color, num_segments, thickness);
-    }
-
-    static void AddCircleFilled(
-        ImDrawList* list, float x, float y, float radius, Numeric::uint32 color,
-        int num_segments
-    ) {
-        list->AddCircleFilled(ImVec2(x,y), radius, color, num_segments);
-    }
-
-    static void AddText(
-        ImDrawList* list, float x, float y, index_t color, const char* text
-    ) {
-        list->AddText(ImVec2(x,y), color, text);
-    }
-
-    static void AddText2(
-        ImDrawList* list, index_t font, float font_size, float x, float y,
-        index_t color, const char* text
-    ) {
-        if(int(font) >= ImGui::GetIO().Fonts->Fonts.size()) {
-            return;
-        }
-        ImFont* imfont = ImGui::GetIO().Fonts->Fonts[int(font)];
-        list->AddText(imfont, font_size, ImVec2(x,y), color, text);
-    }
-
-    static void AddBezierCubic(
-        ImDrawList* list, float x1, float y1, float x2, float y2,
-        float x3, float y3, float x4, float y4, index_t color,
-        float thickness, int num_segments
-    ) {
-        list->AddBezierCubic(
-            ImVec2(x1,y1), ImVec2(x2,y2), ImVec2(x3,y3), ImVec2(x4,y4),
-            color, thickness, num_segments
-        );
-    }
-
-    static void AddImage(
-        ImDrawList* list, index_t id,
-        float x1, float y1, float x2, float y2,
-        float u1, float v1, float u2, float v2,
-        index_t color
-    ) {
-        union {
-            ImTextureID im_texture_id;
-            index_t gl_texture_id;
-        };
-        gl_texture_id = id;
-        list->AddImage(
-            im_texture_id,
-            ImVec2(x1,y1), ImVec2(x2,y2),
-            ImVec2(u1,v1), ImVec2(u2,v2),
-            color
-        );
-    }
-
-    static void AddImageRounded(
-        ImDrawList* list, index_t id,
-        float x1, float y1, float x2, float y2,
-        float u1, float v1, float u2, float v2,
-        index_t color, float rounding, int rounding_corners
-    ) {
-        union {
-            ImTextureID im_texture_id;
-            index_t gl_texture_id;
-        };
-        gl_texture_id = id;
-        list->AddImageRounded(
-            im_texture_id,
-            ImVec2(x1,y1), ImVec2(x2,y2),
-            ImVec2(u1,v1), ImVec2(u2,v2),
-            color, rounding, ImDrawFlags(rounding_corners)
-        );
-    }
-
-    static void PathClear(ImDrawList* list) {
-        list->PathClear();
-    }
-
-    static void PathLineTo(ImDrawList* list, float x, float y) {
-        list->PathLineTo(ImVec2(x,y));
-    }
-
-    static void PathLineToMergeDuplicate(ImDrawList* list, float x, float y) {
-        list->PathLineToMergeDuplicate(ImVec2(x,y));
-    }
-
-    static void PathFillConvex(ImDrawList* list, index_t color) {
-        list->PathFillConvex(color);
-    }
-
-    static void PathStroke(
-        ImDrawList* list, index_t color, bool closed, float thickness
-    ) {
-        list->PathStroke(color, closed, thickness);
-    }
-
-    static void PathArcTo(
-        ImDrawList* list, float cx, float cy, float radius, float a1, float a2,
-        int num_segments
-    ) {
-        list->PathArcTo(ImVec2(cx,cy), radius, a1, a2, num_segments);
-    }
-
-    static void PathArcToFast(
-        ImDrawList* list, float cx, float cy, float radius, int a1, int a2
-    ) {
-        list->PathArcToFast(ImVec2(cx,cy), radius, a1, a2);
-    }
-
-    static void PathBezierCubicCurveTo(
-        ImDrawList* list,
-        float x1, float y1, float x2, float y2, float x3, float y3,
-        int num_segments
-    ) {
-        list->PathBezierCubicCurveTo(
-            ImVec2(x1,y1), ImVec2(x2,y2), ImVec2(x3,y3), num_segments
-        );
-    }
-
-    static void PathRect(
-        ImDrawList* list,
-        float x1, float y1, float x2, float y2,
-        float rounding, int rounding_corners
-    ) {
-        list->PathRect(
-            ImVec2(x1,y1), ImVec2(x2,y2),
-            rounding, ImDrawFlags(rounding_corners)
-        );
+    int wrapper_IO_DisplayFramebufferScale(lua_State* L) {
+	if(lua_gettop(L) != 0) {
+	    return luaL_error(
+		L, "'IO_DisplayFramebufferScale' invalid number of arguments"
+	    );
+	}
+	lua_pushnumber(L,lua_Number(ImGui::GetIO().DisplayFramebufferScale.x));
+	lua_pushnumber(L,lua_Number(ImGui::GetIO().DisplayFramebufferScale.y));
+	return 2;
     }
 }
-
 
 #define DECLARE_IMGUI_CONSTANT(C)               \
     lua_pushinteger(L,C);                       \
     lua_setglobal(L,#C)
 
 
+// Overloads (that gomgen cannot generate yet)
+namespace ImGui_lua_wrappers {
+    using namespace LuaWrap;
+
+    static int PushStyleVar_2(lua_State* L) {
+      static const char* proto =
+	  "void ImGui::PushStyleVar_2(ImGuiStyleVar idx, ImVec2 val)";
+      Arg<int,lua_Integer> idx(L,1);
+      Arg<ImVec2> val(L,2);
+      LUAWRAP_CHECK_ARGS(idx, val);
+      ImGui::PushStyleVar(idx.value, val.value);
+      return 0;
+   }
+
+    static int PushStyleColor_2(lua_State* L) {
+      static const char* proto =
+	  "void ImGui::PushStyleColor_2(ImGuiCol idx, ImVec4 col)";
+      Arg<int,lua_Integer> idx(L,1);
+      Arg<ImVec4> col(L,2);
+      LUAWRAP_CHECK_ARGS(idx, col);
+      ImGui::PushStyleColor(idx.value, col.value);
+      return 0;
+   }
+}
+
 void init_lua_imgui(lua_State* L) {
-    lState = L;
-    LoadImguiBindings();
+    LoadImGuiBindings(L);
+    LoadImDrawListBindings(L);
 
     DECLARE_IMGUI_CONSTANT(ImGuiExtFileDialogFlags_Load);
     DECLARE_IMGUI_CONSTANT(ImGuiExtFileDialogFlags_Save);
-    DECLARE_IMGUI_CONSTANT(ImGuiCond_Always);
-    DECLARE_IMGUI_CONSTANT(ImGuiCond_Once);
-    DECLARE_IMGUI_CONSTANT(ImGuiCond_FirstUseEver);
-    DECLARE_IMGUI_CONSTANT(ImGuiCond_Appearing);
-    DECLARE_IMGUI_CONSTANT(ImGuiSelectableFlags_AllowDoubleClick);
-
-    DECLARE_IMGUI_CONSTANT(ImGuiCol_Text);
-    DECLARE_IMGUI_CONSTANT(ImGuiCol_TextDisabled);
-    DECLARE_IMGUI_CONSTANT(ImGuiCol_WindowBg);
-    DECLARE_IMGUI_CONSTANT(ImGuiCol_ChildBg);
-    DECLARE_IMGUI_CONSTANT(ImGuiCol_PopupBg);
-    DECLARE_IMGUI_CONSTANT(ImGuiCol_Border);
-    DECLARE_IMGUI_CONSTANT(ImGuiCol_BorderShadow);
-    DECLARE_IMGUI_CONSTANT(ImGuiCol_FrameBg);
-    DECLARE_IMGUI_CONSTANT(ImGuiCol_FrameBgHovered);
-    DECLARE_IMGUI_CONSTANT(ImGuiCol_FrameBgActive);
-    DECLARE_IMGUI_CONSTANT(ImGuiCol_TitleBg);
-    DECLARE_IMGUI_CONSTANT(ImGuiCol_TitleBgActive);
-    DECLARE_IMGUI_CONSTANT(ImGuiCol_TitleBgCollapsed);
-    DECLARE_IMGUI_CONSTANT(ImGuiCol_MenuBarBg);
-    DECLARE_IMGUI_CONSTANT(ImGuiCol_ScrollbarBg);
-    DECLARE_IMGUI_CONSTANT(ImGuiCol_ScrollbarGrab);
-    DECLARE_IMGUI_CONSTANT(ImGuiCol_ScrollbarGrabHovered);
-    DECLARE_IMGUI_CONSTANT(ImGuiCol_ScrollbarGrabActive);
-    DECLARE_IMGUI_CONSTANT(ImGuiCol_CheckMark);
-    DECLARE_IMGUI_CONSTANT(ImGuiCol_SliderGrab);
-    DECLARE_IMGUI_CONSTANT(ImGuiCol_SliderGrabActive);
-    DECLARE_IMGUI_CONSTANT(ImGuiCol_Button);
-    DECLARE_IMGUI_CONSTANT(ImGuiCol_ButtonHovered);
-    DECLARE_IMGUI_CONSTANT(ImGuiCol_ButtonActive);
-    DECLARE_IMGUI_CONSTANT(ImGuiCol_Header);
-    DECLARE_IMGUI_CONSTANT(ImGuiCol_HeaderHovered);
-    DECLARE_IMGUI_CONSTANT(ImGuiCol_HeaderActive);
-    DECLARE_IMGUI_CONSTANT(ImGuiCol_Separator);
-    DECLARE_IMGUI_CONSTANT(ImGuiCol_SeparatorHovered);
-    DECLARE_IMGUI_CONSTANT(ImGuiCol_SeparatorActive);
-    DECLARE_IMGUI_CONSTANT(ImGuiCol_ResizeGrip);
-    DECLARE_IMGUI_CONSTANT(ImGuiCol_ResizeGripHovered);
-    DECLARE_IMGUI_CONSTANT(ImGuiCol_ResizeGripActive);
-    DECLARE_IMGUI_CONSTANT(ImGuiCol_Tab);
-    DECLARE_IMGUI_CONSTANT(ImGuiCol_TabHovered);
-    DECLARE_IMGUI_CONSTANT(ImGuiCol_TabActive);
-    DECLARE_IMGUI_CONSTANT(ImGuiCol_TabUnfocused);
-    DECLARE_IMGUI_CONSTANT(ImGuiCol_TabUnfocusedActive);
-    DECLARE_IMGUI_CONSTANT(ImGuiCol_DockingPreview);
-    DECLARE_IMGUI_CONSTANT(ImGuiCol_DockingEmptyBg);
-    DECLARE_IMGUI_CONSTANT(ImGuiCol_PlotLines);
-    DECLARE_IMGUI_CONSTANT(ImGuiCol_PlotLinesHovered);
-    DECLARE_IMGUI_CONSTANT(ImGuiCol_PlotHistogram);
-    DECLARE_IMGUI_CONSTANT(ImGuiCol_PlotHistogramHovered);
-    DECLARE_IMGUI_CONSTANT(ImGuiCol_TextSelectedBg);
-    DECLARE_IMGUI_CONSTANT(ImGuiCol_DragDropTarget);
-    DECLARE_IMGUI_CONSTANT(ImGuiCol_NavHighlight);
-    DECLARE_IMGUI_CONSTANT(ImGuiCol_NavWindowingHighlight);
-    DECLARE_IMGUI_CONSTANT(ImGuiCol_NavWindowingDimBg);
-    DECLARE_IMGUI_CONSTANT(ImGuiCol_ModalWindowDimBg);
 
     lua_getglobal(L, "imgui");
 
@@ -1001,30 +604,6 @@ void init_lua_imgui(lua_State* L) {
     lua_pushcfunction(L,wrapper_FileDialog);
     lua_settable(L,-3);
 
-    lua_pushliteral(L,"SetNextWindowPos");
-    lua_pushcfunction(L,wrapper_SetNextWindowPos);
-    lua_settable(L,-3);
-
-    lua_pushliteral(L,"SetNextWindowSize");
-    lua_pushcfunction(L,wrapper_SetNextWindowSize);
-    lua_settable(L,-3);
-
-    lua_pushliteral(L,"IsItemHovered");
-    lua_pushcfunction(L,wrapper_IsItemHovered);
-    lua_settable(L,-3);
-
-    lua_pushliteral(L,"Text");
-    lua_pushcfunction(L,wrapper_Text);
-    lua_settable(L,-3);
-
-    lua_pushliteral(L,"SetTooltip");
-    lua_pushcfunction(L,wrapper_SetTooltip);
-    lua_settable(L,-3);
-
-    lua_pushliteral(L,"ShowStyleEditor");
-    lua_pushcfunction(L,wrapper_ShowStyleEditor);
-    lua_settable(L,-3);
-
     lua_pushliteral(L,"PushFont");
     lua_pushcfunction(L,wrapper_PushFont);
     lua_settable(L,-3);
@@ -1033,71 +612,37 @@ void init_lua_imgui(lua_State* L) {
     lua_pushcfunction(L,wrapper_font_icon);
     lua_settable(L,-3);
 
-    lua_pushliteral(L,"BeginTabBar");
-    lua_pushcfunction(L,wrapper_BeginTabBar);
-    lua_settable(L,-3);
-
-    lua_pushliteral(L,"BeginTabItem");
-    lua_pushcfunction(L,wrapper_BeginTabItem);
-    lua_settable(L,-3);
-
     lua_pushliteral(L,"SimpleButton");
     lua_pushcfunction(L,wrapper_SimpleButton);
     lua_settable(L,-3);
 
-    lua_pushliteral(L,"GetMousePos");
-    lua_pushcfunction(L,wrapper_GetMousePos);
+    lua_pushliteral(L,"SimpleButton2");
+    lua_pushcfunction(L,wrapper_SimpleButton2);
     lua_settable(L,-3);
 
     /*****************************************************************/
 
-    lua_bindwrapper(L,ImGui::GetWindowDrawList);
-    lua_bindwrapper(L,ImGuiDrawAdapters::GetBackgroundDrawList);
-    lua_bindwrapper(L,ImGuiDrawAdapters::GetForegroundDrawList);
+    lua_pushliteral(L,"IO_DisplayFramebufferScale");
+    lua_pushcfunction(L,wrapper_IO_DisplayFramebufferScale);
+    lua_settable(L,-3);
 
-    lua_bindwrapper(L,ImGuiDrawAdapters::PushClipRect);
-    lua_bindwrapper(L,ImGuiDrawAdapters::PushClipRectFullScreen);
-    lua_bindwrapper(L,ImGuiDrawAdapters::PopClipRect);
+    /*****************************************************************/
 
-    lua_bindwrapper(L,ImGuiDrawAdapters::PushTextureID);
-    lua_bindwrapper(L,ImGuiDrawAdapters::PopTextureID);
+    // Overloads that could not be generated by gomgen
+    using namespace ImGui_lua_wrappers;
+    LUAWRAP_DECLARE_FUNCTION(L,PushStyleVar_2);
+    LUAWRAP_DECLARE_FUNCTION(L,PushStyleColor_2);
 
-    lua_bindwrapper(L,ImGuiDrawAdapters::AddLine);
-    lua_bindwrapper(L,ImGuiDrawAdapters::AddRect);
-    lua_bindwrapper(L,ImGuiDrawAdapters::AddRectFilled);
-    lua_bindwrapper(L,ImGuiDrawAdapters::AddRectFilledMultiColor);
-    lua_bindwrapper(L,ImGuiDrawAdapters::AddQuad);
-    lua_bindwrapper(L,ImGuiDrawAdapters::AddQuadFilled);
-    lua_bindwrapper(L,ImGuiDrawAdapters::AddTriangle);
-    lua_bindwrapper(L,ImGuiDrawAdapters::AddTriangleFilled);
-    lua_bindwrapper(L,ImGuiDrawAdapters::AddCircle);
-    lua_bindwrapper(L,ImGuiDrawAdapters::AddCircleFilled);
-    lua_bindwrapper(L,ImGuiDrawAdapters::AddText);
-    lua_bindwrapper(L,ImGuiDrawAdapters::AddText2);
-    lua_bindwrapper(L,ImGuiDrawAdapters::AddBezierCubic);
-    lua_bindwrapper(L,ImGuiDrawAdapters::AddImage);
-    lua_bindwrapper(L,ImGuiDrawAdapters::AddImageRounded);
-    lua_bindwrapper(L,ImGuiDrawAdapters::PathClear);
-    lua_bindwrapper(L,ImGuiDrawAdapters::PathLineTo);
-    lua_bindwrapper(L,ImGuiDrawAdapters::PathLineToMergeDuplicate);
-    lua_bindwrapper(L,ImGuiDrawAdapters::PathFillConvex);
-    lua_bindwrapper(L,ImGuiDrawAdapters::PathStroke);
-    lua_bindwrapper(L,ImGuiDrawAdapters::PathArcTo);
-    lua_bindwrapper(L,ImGuiDrawAdapters::PathArcToFast);
-    lua_bindwrapper(L,ImGuiDrawAdapters::PathBezierCubicCurveTo);
-    lua_bindwrapper(L,ImGuiDrawAdapters::PathRect);
+    /*****************************************************************/
 
     lua_pop(L,1);
 
-    DECLARE_IMGUI_CONSTANT(ImDrawFlags_RoundCornersNone);
-    DECLARE_IMGUI_CONSTANT(ImDrawFlags_RoundCornersTopLeft);
-    DECLARE_IMGUI_CONSTANT(ImDrawFlags_RoundCornersTopRight);
-    DECLARE_IMGUI_CONSTANT(ImDrawFlags_RoundCornersBottomLeft);
-    DECLARE_IMGUI_CONSTANT(ImDrawFlags_RoundCornersBottomRight);
-    DECLARE_IMGUI_CONSTANT(ImDrawFlags_RoundCornersTop);
-    DECLARE_IMGUI_CONSTANT(ImDrawFlags_RoundCornersBottom);
-    DECLARE_IMGUI_CONSTANT(ImDrawFlags_RoundCornersLeft);
-    DECLARE_IMGUI_CONSTANT(ImDrawFlags_RoundCornersRight);
-    DECLARE_IMGUI_CONSTANT(ImDrawFlags_RoundCornersAll);
+    lua_newtable(L);
+    lua_bindwrapper(L,ImOGuizmo::BeginFrame);
+    lua_bindwrapper(L,ImOGuizmo::SetRect);
 
+    lua_pushliteral(L,"DrawGizmo");
+    lua_pushcfunction(L,wrapper_DrawGizmo);
+    lua_settable(L,-3);
+    lua_setglobal(L,"ImOGuizmo");
 }

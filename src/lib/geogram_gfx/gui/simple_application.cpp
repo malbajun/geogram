@@ -39,11 +39,17 @@
 
 #include <geogram_gfx/gui/simple_application.h>
 #include <geogram_gfx/gui/geogram_logo_256.xpm>
+
 #include <geogram/basic/file_system.h>
 #include <geogram/basic/string.h>
 #include <geogram/basic/logger.h>
 #include <geogram/basic/command_line.h>
 #include <geogram/basic/stopwatch.h>
+#include <geogram/basic/command_line.h>
+#include <geogram/basic/command_line_args.h>
+#include <geogram/image/image.h>
+#include <geogram/image/image_library.h>
+
 #include <geogram/bibliography/bibliography.h>
 
 #include <geogram_gfx/full_screen_effects/ambient_occlusion.h>
@@ -67,12 +73,6 @@
 #  include <geogram_gfx/lua/lua_simple_application.h>
 #  include <geogram_gfx/lua/lua_imgui.h>
 #  include <geogram/lua/lua_io.h>
-
-extern "C" {
-#    include <geogram/third_party/lua/lua.h>
-#    include <geogram/third_party/lua/lauxlib.h>
-#    include <geogram/third_party/lua/lualib.h>
-}
 
 #endif
 
@@ -144,6 +144,7 @@ namespace GEO {
         use_text_editor_           = false;
         text_editor_visible_       = false;
         menubar_visible_           = true;
+	command_line_editor_visible_ = false;
 
         console_ = new Console(&console_visible_);
         console_->hide_command_prompt();
@@ -154,6 +155,7 @@ namespace GEO {
         add_key_func("z", [this]() { zoom_in(); }, "zoom in");
         add_key_func("Z", [this]() { zoom_out(); }, "zoom out");
         add_key_func("H", [this]() { home(); }, "home");
+
         add_key_toggle("L",   &lighting_, "light");
         add_key_toggle("l",   &edit_light_, "light edit");
         add_key_toggle("F1",  &clipping_, "clipping");
@@ -167,6 +169,7 @@ namespace GEO {
         add_key_toggle("F12", &menubar_visible_, "menubar");
 
         add_key_func("F5", replay_latest_command, "replay latest command");
+	add_key_func("F11", [this]() { snapshot("",true); },"snapshot");
 
         set_region_of_interest(0.0, 0.0, 0.0, 1.0, 1.0, 1.0);
 
@@ -196,6 +199,11 @@ namespace GEO {
             "Used to create the GUI of GEOGRAM utilities "
             "(vorpaview, geobox, geocod)."
         );
+
+	// TODO: flip Y only in mouse callback
+        object_rotation_.set_y_inverted(true);
+        light_rotation_.set_y_inverted(true);
+        clip_rotation_.set_y_inverted(true);
 
         props_pinned_ = false;
         locked_ = false;
@@ -271,7 +279,7 @@ namespace GEO {
 
     void SimpleApplication::set_style(const std::string& style) {
         Application::set_style(style);
-        if(String::string_starts_with(style, "Light")) {
+        if(String::string_starts_with(style, "Light") || style == "Polyscope") {
             background_color_ = vec4f(1.0f, 1.0f, 1.0f, 1.0f);
         } else {
             background_color_ = vec4f(0.0f, 0.0f, 0.0f, 1.0f);
@@ -341,6 +349,7 @@ namespace GEO {
         draw_object_properties_window();
         draw_console();
         draw_command_window();
+	draw_command_line_editor();
         if(text_editor_visible_) {
             text_editor_.draw();
         }
@@ -434,9 +443,8 @@ namespace GEO {
         }
 
         static vec3 light0 = normalize(vec3(1.0, 1.0, 1.0));
-        vec3 light = transform_vector(
-            light0, light_rotation_.get_value()
-        );
+        vec3 light = vec3(vec4(light0,0.0) * light_rotation_.get_value());
+
         glupLightVector3f(float(light.x), float(light.y), float(light.z));
 
         glupMatrixMode(GLUP_MODELVIEW_MATRIX);
@@ -466,6 +474,7 @@ namespace GEO {
                     if(effect_ != 0) {
                         glDepthMask(GL_FALSE);
                     }
+		    glupSetMeshWidth(1.0f);
                     glupSetColor3f(
                         GLUP_FRONT_AND_BACK_COLOR,
                         1.0f - background_color_.x,
@@ -587,7 +596,7 @@ namespace GEO {
             // rather than frame buffer resolution
             // (we do not need fullres for shadows)
             full_screen_effect_->pre_render(
-                get_width(), get_height()
+                get_frame_buffer_width(), get_frame_buffer_height()
             );
         }
         draw_scene_begin();
@@ -814,11 +823,23 @@ namespace GEO {
                     draw_save_menu();
                 }
                 draw_fileops_menu();
+		ImGui::Separator();
+		if(
+		    ImGui::MenuItem(
+			icon_UTF8("camera") + " snapshot",
+			"[F11]", false, true
+		    )
+		) {
+		    this->snapshot("",true);
+		}
 #ifndef GEO_OS_EMSCRIPTEN
                 ImGui::Separator();
-                if(ImGui::MenuItem(icon_UTF8("door-open") + " quit",
-                                   "[q]", false, true)
-                  ) {
+                if(
+		    ImGui::MenuItem(
+			icon_UTF8("door-open") + " quit",
+			"[q]", false, true
+		    )
+		) {
                     this->stop();
                 }
 #endif
@@ -925,7 +946,7 @@ namespace GEO {
             ImGui::Text("%s : a GEOGRAM application", name().c_str());
             float sz = float(280.0 * std::min(scaling(), 2.0));
             ImGui::Image(
-                convert_to_ImTextureID(geogram_logo_texture_),
+                static_cast<ImTextureID>(geogram_logo_texture_),
                 ImVec2(sz, sz)
             );
             ImGui::Text("\n");
@@ -948,7 +969,7 @@ namespace GEO {
     }
 
     void SimpleApplication::draw_help() {
-        if(ImGui::BeginMenu(icon_UTF8("question") + " help")) {
+        if(ImGui::BeginMenu(icon_UTF8("circle-question") + " help")) {
             ImGui::Text("Key shortcuts");
             ImGui::Separator();
             std::vector<std::string> helps;
@@ -1110,6 +1131,12 @@ namespace GEO {
         return (const char*)gui_state_h;
     }
 
+    void SimpleApplication::command_line_arg_changed(
+	const std::string& argname
+    ) {
+	geo_argused(argname);
+    }
+
     const char* SimpleApplication::default_layout() const {
         const char* result = nullptr;
         if(phone_screen_) {
@@ -1149,6 +1176,98 @@ namespace GEO {
                 }
             }
         }
+    }
+
+    void SimpleApplication::draw_command_line_editor() {
+	if(!command_line_editor_visible_) {
+	    return;
+	}
+	ImGui::SetNextWindowSize(ImVec2(600,400),ImGuiCond_FirstUseEver);
+	ImGui::Begin("Parameters...",&command_line_editor_visible_);
+	std::vector<std::string> groups;
+	CmdLine::get_arg_groups(groups);
+	ImGui::BeginTabBar("##tabs");
+	for(auto group: groups) {
+	    if(ImGui::BeginTabItem(group.c_str())) {
+		std::vector<std::string> args;
+		CmdLine::get_arg_names_in_group(group, args);
+		for(auto full_arg_name: args) {
+		    std::string arg_name = full_arg_name;
+		    std::string help = CmdLine::get_arg_desc(full_arg_name);
+		    if(String::string_starts_with(arg_name, group + ":")) {
+			arg_name = arg_name.substr(group.length()+1);
+		    }
+		    CmdLine::ArgType type = CmdLine::get_arg_type(full_arg_name);
+		    switch(type) {
+		    case CmdLine::ARG_UNDEFINED: {
+		    } break;
+		    case CmdLine::ARG_INT: {
+			ImGui::Text("%s",arg_name.c_str());
+			ImGui::SameLine();
+			ImGui::SetNextItemWidth(-1.0f);
+			int val = CmdLine::get_arg_int(full_arg_name);
+			if(ImGui::InputInt(
+			       ("##" + arg_name + "##" + group).c_str(), &val
+			)) {
+			    CmdLine::set_arg(full_arg_name, val);
+			}
+			ImGui::Tooltip(help);
+		    } break;
+		    case CmdLine::ARG_DOUBLE: {
+			ImGui::Text("%s",arg_name.c_str());
+			ImGui::SameLine();
+			ImGui::SetNextItemWidth(-1.0f);
+			double val = CmdLine::get_arg_double(full_arg_name);
+			if(ImGui::InputDouble(
+			       ("##" + arg_name + "##" + group).c_str(), &val
+			)) {
+			    CmdLine::set_arg(full_arg_name, val);
+			}
+			ImGui::Tooltip(help);
+		    } break;
+		    case CmdLine::ARG_STRING: {
+			std::string val = CmdLine::get_arg(full_arg_name);
+			ImGui::Text("%s",arg_name.c_str());
+			ImGui::SameLine();
+			ImGui::SetNextItemWidth(-1.0f);
+			ImGui::Tooltip(help);
+			if(
+			    ImGui::InputText(("##" + full_arg_name).c_str(),&val)
+			) {
+			    CmdLine::set_arg(full_arg_name, val);
+			}
+			ImGui::Tooltip(help);
+		    } break;
+		    case CmdLine::ARG_BOOL: {
+			bool val = CmdLine::get_arg_bool(full_arg_name);
+			if(ImGui::Checkbox(
+			       (arg_name + "##" + group).c_str(), &val
+			)) {
+			    CmdLine::set_arg(full_arg_name, val);
+			}
+			ImGui::Tooltip(help);
+		    } break;
+		    case CmdLine::ARG_PERCENT: {
+			ImGui::Text("%s",arg_name.c_str());
+			ImGui::SameLine();
+			ImGui::SetNextItemWidth(-1.0f);
+			double val = CmdLine::get_arg_percent(
+			    full_arg_name,100.0
+			);
+			if(ImGui::InputDouble(
+			       ("##" + arg_name + "##" + group).c_str(), &val
+			)) {
+			    CmdLine::set_arg(full_arg_name, val);
+			}
+			ImGui::Tooltip(help + " (percent)");
+		    } break;
+		    }
+		}
+		ImGui::EndTabItem();
+	    }
+	}
+	ImGui::EndTabBar();
+	ImGui::End();
     }
 
     void SimpleApplication::post_draw() {
@@ -1385,6 +1504,9 @@ namespace GEO {
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         glTexImage2Dxpm(geogram_logo_256_xpm);
+	glEnable(GL_POLYGON_OFFSET_FILL);
+        glPolygonOffset (1.,1.);
+
         init_colormaps();
         std::string keys = CmdLine::get_arg("gfx:keypress");
         for(index_t i=0; i<index_t(keys.length()); ++i) {
@@ -1538,4 +1660,114 @@ namespace GEO {
         Command::replay_latest();
         instance()->locked_ = false;
     }
+
+
+    void SimpleApplication::snapshot(
+	Image* image,
+	index_t x0, index_t y0, index_t width, index_t height,
+	bool redraw
+    ) {
+#ifdef GEO_OS_EMSCRIPTEN
+	// GL_PACK_ROW_LENGTH undefined under emscripten
+	// (to be fixed, deactivated for now)
+	geo_argused(image);
+	geo_argused(x0);
+        geo_argused(y0);
+	geo_argused(width);
+	geo_argused(height);
+	geo_argused(redraw);
+#else
+	if(redraw) {
+	    one_frame(false); // false: do not draw GUI
+	}
+
+	// hidpi_scaling to take "logical pixels" into account on MacOS
+	index_t window_width = index_t(double(get_width()) * pixel_ratio());
+	index_t window_height = index_t(double(get_height()) * pixel_ratio());
+
+        if(width == 0) {
+            width = window_width;
+        }
+
+        if(height == 0) {
+            height = window_height;
+        }
+
+        if(image->base_mem() == nullptr) {
+            image->initialize(Image::RGB, Image::BYTE, width, height);
+        }
+
+	width  = std::min(image->width(), window_width-x0);
+        height = std::min(image->height(), window_height-y0);
+
+        glPixelStorei(GL_PACK_ALIGNMENT, 1);
+        glPixelStorei(GL_PACK_ROW_LENGTH, int(image->width()));
+
+        if(image->component_encoding() != Image::BYTE) {
+            Logger::err("RenderingContext")
+                << "snapshot(): wrong image component encoding"
+                << std::endl;
+            return;
+        }
+
+        switch (image->color_encoding()) {
+        case Image::RGB:
+            glReadPixels(
+                GLint(x0), GLint(y0), GLsizei(width), GLsizei(height),
+                GL_RGB, GL_UNSIGNED_BYTE, image->base_mem()
+            );
+            break;
+
+        case Image::BGR:
+            glReadPixels(
+                GLint(x0), GLint(y0), GLsizei(width), GLsizei(height),
+                GL_BGR, GL_UNSIGNED_BYTE, image->base_mem()
+            );
+            break;
+
+        case Image::RGBA:
+            glReadPixels(
+                GLint(x0), GLint(y0), GLsizei(width), GLsizei(height),
+                GL_RGBA, GL_UNSIGNED_BYTE, image->base_mem()
+            );
+            break;
+
+        case Image::GRAY:
+        case Image::INDEXED:
+        case Image::YUV:
+	    Logger::err("RenderingContext")
+                << "snapshot(): wrong image color encoding"
+                << std::endl;
+	    break;
+        }
+
+        // Restore default
+        glPixelStorei(GL_PACK_ROW_LENGTH, 0);
+
+	if(redraw) {
+	    one_frame(true); // redraw with GUI
+	}
+#endif
+    }
+
+    void SimpleApplication::snapshot(std::string filename, bool verbose) {
+	if(filename == "") {
+	    filename = CmdLine::get_arg("gui:snapshot_filename");
+	}
+	Image_var image = new Image;
+	snapshot(image);
+	bool ok = ImageLibrary::instance()->save_image(filename,image);
+	if(verbose && ok) {
+	    Logger::out("Snapshot") << "Saved " << filename << std::endl;
+	}
+    }
+
+    void SimpleApplication::declare_args() {
+	Application::declare_args();
+	CmdLine::declare_arg(
+	    "gui:snapshot_filename", "snapshot.png",
+	    "default snapshot image filename"
+	);
+    }
+
 }

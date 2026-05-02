@@ -40,16 +40,13 @@
 #ifndef GEOGRAM_LUA_LUA_WRAP
 
 #include <geogram/basic/common.h>
+#include <geogram/lua/lua.h>
+#include <geogram/lua/lua_vec_mat.h>
 #include <geogram/basic/assert.h>
 #include <geogram/basic/numeric.h>
 #include <geogram/basic/string.h>
 #include <geogram/basic/memory.h>
 
-extern "C" {
-#include <geogram/third_party/lua/lua.h>
-#include <geogram/third_party/lua/lauxlib.h>
-#include <geogram/third_party/lua/lualib.h>
-}
 
 #ifdef GEO_COMPILER_MSVC
 #pragma warning( push )
@@ -470,14 +467,54 @@ namespace GEO {
         std::string x_;
     };
 
+
+    /**
+     * \brief lua_to specialization for vec.
+     */
+    template<class T, unsigned int N> class lua_to< const vecng<N,T>& > {
+    public:
+        lua_to(lua_State* L, int idx) {
+	    lua_tovec(L, idx, x_);
+        }
+        static bool can_convert(lua_State* L, int idx) {
+	    vecng<N,T> x;
+            return lua_tovec(L, idx, x);
+        }
+        operator vecng<N,T>() const {
+            return x_;
+        }
+    private:
+        vecng<N,T> x_;
+    };
+
+    /**
+     * \brief lua_to specialization for mat.
+     */
+    template<class T, unsigned int N> class lua_to< const Matrix<N,T>& > {
+    public:
+        lua_to(lua_State* L, int idx) {
+	    lua_tomat(L, idx, x_);
+        }
+        static bool can_convert(lua_State* L, int idx) {
+	    Matrix<N,T> x;
+            return lua_tomat(L, idx, x);
+        }
+        operator Matrix<N,T>() const {
+            return x_;
+        }
+    private:
+        Matrix<N,T> x_;
+    };
+
     /**********************************************************************/
 
     /**
      * \brief Converts and pushes a C++ variable onto the LUA stack.
      * \details This version is a placeholder. The actual implementation
      *  is done in the specializations.
-     * \note Just using function overloading (instead of template partializations)
-     *  works with gcc, but does not work with clang and MSVC.
+     * \note Just using function overloading
+     *   (instead of template partializations) works with gcc,
+     *   but does not work with clang and MSVC.
      * \param[in] L a pointer to the LUA state.
      * \param[in] x the variable to be pushed.
      */
@@ -493,7 +530,6 @@ namespace GEO {
     template<> inline void lua_push(lua_State* L, int x) {
         lua_pushinteger(L,lua_Integer(x));
     }
-
 
     /**
      * \brief Specialization of lua_push() for Numeric::uint32.
@@ -1228,16 +1264,14 @@ namespace GEO {
          * \brief Implementation of the wrapper.
          * \details This is the C functions to be declared to LUA.
          *  It is typed by the signature of the wrapped C++ function,
-         *  and the pointer to the  actual wrapped C++ function is stored
+         *  and the pointer to the actual wrapped C++ function is stored
          *  in an upvalue.
          * \param[in] L a pointer to the LUA state.
          */
         static int call(lua_State* L) {
-            FPTR f = FPTR(
-                Memory::generic_pointer_to_function_pointer(
-                    lua_touserdata(L, lua_upvalueindex(1))
-                )
-            );
+            FPTR f = Memory::generic_pointer_to_function_pointer<FPTR>(
+		lua_touserdata(L, lua_upvalueindex(1))
+	    );
             return lua_wrap(L, f);
         }
 
@@ -1249,10 +1283,7 @@ namespace GEO {
          */
         static void push(lua_State* L, FPTR f) {
             lua_pushlightuserdata(
-                L,
-                Memory::function_pointer_to_generic_pointer(
-                    Memory::function_pointer(f)
-                )
+                L, Memory::function_pointer_to_generic_pointer<FPTR>(f)
             );
             lua_pushcclosure(L, lua_wrapper<FPTR>::call, 1);
         }

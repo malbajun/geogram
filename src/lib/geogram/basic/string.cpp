@@ -116,7 +116,25 @@ namespace GEO {
                 return false;
             }
             left = in.substr(0,p);
-            right = in.substr(p+1,in.length()-p);
+            right = in.substr(p+1);
+            return true;
+        }
+
+
+        bool split_string(
+            const std::string& in,
+            const std::string& separator,
+            std::string& left,
+            std::string& right
+        ) {
+            size_t p = in.find(separator);
+            if(p == std::string::npos) {
+                left = "";
+                right = "";
+                return false;
+            }
+            left = in.substr(0,p);
+            right = in.substr(p+separator.length());
             return true;
         }
 
@@ -194,11 +212,35 @@ namespace GEO {
             // Create the string of required length and sprintf() into it
             std::string result(length,'*');
             va_start(arg_ptr, format);
-            vsnprintf(const_cast<char*>(result.c_str()), length+1, format, arg_ptr);
+            vsnprintf(
+		const_cast<char*>(result.c_str()), length+1, format, arg_ptr
+	    );
             va_end(arg_ptr);
 
             return result;
         }
+
+	std::string format_time(double seconds, bool HMS_only) {
+
+	    std::string result;
+	    if(!HMS_only) {
+		result = String::to_display_string(seconds) + "s";
+	    }
+
+	    if(seconds >= 60.0) {
+		while(!HMS_only && result.length() <= 10) {
+		    result += " ";
+		}
+		int S = int(seconds);
+		int H = S / 3600;
+		S = S % 3600;
+		int M = S / 60;
+		S = S % 60;
+		result += String::format("(%02d:%02d:%02d)",H,M,S);
+	    }
+
+	    return result;
+	}
 
         // Reference: https://stackoverflow.com/questions/148403/
         //     utf8-to-from-wide-char-conversion-in-stl

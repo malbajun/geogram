@@ -42,6 +42,7 @@
 
 #include <geogram_gfx/basic/common.h>
 #include <geogram_gfx/gui/events.h>
+#include <atomic>
 
 #ifndef GEO_OS_ANDROID
 #  define GEO_GLFW
@@ -51,6 +52,13 @@
  * \file geogram_gfx/gui/application.h
  * \brief Base class for all applications.
  */
+
+#ifdef GEO_OS_WINDOWS
+#define GEO_APPLICATION_GLOBALS \
+    extern "C" { __declspec(dllexport) DWORD NvOptimusEnablement = 0x00000000; }
+#else
+#define GEO_APPLICATION_GLOBALS
+#endif
 
 namespace GEO {
 
@@ -178,6 +186,18 @@ namespace GEO {
     }
 
     /**
+     * \brief Tests whether graphic updates are locked
+     * \details This function should be called before triggering graphic
+     *  redraw to avoid reentrant calls in ImGUI functions, for instance
+     *  when graphic redraw is triggered from Console or ProgressBar
+     * \see lock_updates(), unlock_updates()
+     * \return true if graphic updates are locked, false otherwise
+     */
+    bool updates_locked() const {
+	return (nb_update_locks_ > 0);
+    }
+
+    /**
      * \brief Redraws the main window.
      * \details This function is called by commands that animate
      *  objects during computation, by the progress bar and by
@@ -260,6 +280,9 @@ namespace GEO {
     /**
      * \brief Gets the width of the window.
      * \return the width of the window in pixels.
+     * \details important note: for OpenGL operations, use
+     *  get_framebuffer_width() instead, that applies pixel scaling
+     *  (MacOS/X retina non-sense)
      */
     index_t get_width() const {
         return width_;
@@ -268,22 +291,29 @@ namespace GEO {
     /**
      * \brief Gets the height of the window.
      * \return the height of the window in pixels.
+     * \details important note: for OpenGL operations, use
+     *  get_framebuffer_height() instead, that applies pixel scaling
+     *  (MacOS/X retina non-sense)
      */
     index_t get_height() const {
         return height_;
     }
 
     /**
-     * \brief Gets the width of the window.
+     * \brief Gets the width of the frame buffer.
      * \return the width of the frame buffer in pixels.
+     * \details On MacOSX, frame buffer can have a higher resolution than
+     *  the window.
      */
     index_t get_frame_buffer_width() const {
         return frame_buffer_width_;
     }
 
     /**
-     * \brief Gets the height of the window.
+     * \brief Gets the height of the frame buffer.
      * \return the height of the frame buffer in pixels.
+     * \details On MacOSX, frame buffer can have a higher resolution than
+     *  the window.
      */
     index_t get_frame_buffer_height() const {
         return frame_buffer_height_;
@@ -336,9 +366,13 @@ namespace GEO {
 
     /**
      * \brief Callback called whenever the mouse cursor is moved.
-     * \param[in] x , y the new position of the mouse cursor.
+     * \param[in] x , y the new position of the mouse cursor, in
+     *   'window pixels', with origin at top-left corner.
      * \param[in] source the event source (one of EVENT_SOURCE_MOUSE,
      *   EVENT_SOURCE_FINGER, EVENT_SOURCE_STYLUS)
+     * \details The function divides by retina scaling internally
+     *   to get OpenGL window coordinates (in framebuffer pixels)
+     *   and flips the Y coordinate (origin at bottom-left corner).
      */
     virtual void cursor_pos_callback(
         double x, double y, int source=EVENT_SOURCE_MOUSE
@@ -393,6 +427,10 @@ namespace GEO {
 
     /**
      * \brief MacOS non-sense
+     * \details Computed as glfwGetFramebufferSize() / glfwGetWindowSize(),
+     *  where FramebufferSize corresponds to OpenGL pixels (passed to glViewport)
+     *  and WindowSize, the size of the window in screen coordinates. On Mac
+     *  Retina screens they can differ.
      * \return a scaling factor between real pixels and logical
      *  pixels or something, well I do not understand. Sometimes
      *  you need to multiply by it, sometimes to divide, and
@@ -404,11 +442,16 @@ namespace GEO {
 
     /**
      * \brief More MacOS non-sense
+     * \details Computed as glfwGetWindowContentScale(), that is, ratio between
+     *  current DPI and platform's default DPI.
      * \return something like hidpi_scaling(), that is a scaling
      *  factor between real pixels and logical
      *  pixels or something, well I do not understand.
+     * \details
      *  Sometimes you need to multiply by it, sometimes to divide,
      *  and sometimes you need to use hidpi_scaling() instead.
+     *  If I understood well, frame buffer size corresponds to
+     *  window size times pixel ratio.
      */
     double pixel_ratio() const {
         return pixel_ratio_;
@@ -490,7 +533,7 @@ namespace GEO {
      * \brief Draws one frame.
      * \details This triggers a GUI and/or a scene update as needed.
      */
-    virtual void one_frame();
+    virtual void one_frame(bool draw_GUI = true);
 
     /**
      * \brief Enters the main application loop.
@@ -537,6 +580,14 @@ namespace GEO {
     virtual void geogram_initialize(int argc, char** argv);
 
     /**
+     * \brief Called by geogram_initialize(), right before parsing
+     *  command line arguments.
+     * \details Derived application class declare their args by overriding
+     *  this function.
+     */
+    virtual void declare_args();
+
+    /**
      * \brief Initializes the callbacks if not already initialized.
      */
     void callbacks_initialize();
@@ -565,6 +616,28 @@ namespace GEO {
         animate_ = false;
     }
 
+    /**
+     * \Brief Used to emulate pre-v1.92 ImGUI API
+     */
+    float get_font_size(index_t font_id) const {
+	geo_assert(font_id < font_sizes_.size());
+	return font_sizes_[font_id];
+    }
+
+    /**
+     * \Brief Used to emulate pre-v1.92 ImGUI API
+     */
+    float get_font_global_scale() const {
+	return font_global_scale_;
+    }
+
+    /**
+     * \Brief Used to emulate pre-v1.92 ImGUI API
+     */
+    void set_font_global_scale(float s) {
+	font_global_scale_ = s;
+    }
+
     private:
     static Application* instance_; /**< a pointer to the instance */
     ApplicationData* data_;        /**< implementation dependent */
@@ -575,7 +648,7 @@ namespace GEO {
     bool in_main_loop_;            /**< main loop is running */
     bool accept_drops_;            /**< app. accepts dropping files */
     double scaling_;               /**< global scaling for to all sizes */
-    index_t nb_update_locks_;      /**< lock graphic updates */
+    std::atomic<index_t> nb_update_locks_; /**< lock graphic updates */
     std::string style_;            /**< ImGui style (Dark, Light, ...) */
     bool ImGui_restart_;           /**< ImGui needs to be restarted */
     bool ImGui_reload_font_;       /**< font size has changed */
@@ -587,8 +660,9 @@ namespace GEO {
     std::string name_;             /**< application name */
     bool currently_drawing_gui_;   /**< currently drawing ImGui elements */
     std::vector<std::string> filenames_; /**< from the command line */
-    bool animate_;                 /**< true if drawing always */
-
+    bool animate_;                       /**< true if drawing always */
+    vector<float> font_sizes_;     /**< emulate pre-v1.92 ImGUI API*/
+    float font_global_scale_;      /**< emulate pre-v1.92 ImGUI API*/
 
     protected:
     bool ImGui_firsttime_init_;  /**< true if ImGui was once initialized */

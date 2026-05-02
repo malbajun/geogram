@@ -119,8 +119,8 @@ namespace GEO {
         }
         set_arrays(
             index_t(tetgen_out_.numberoftetrahedra),
-            tetgen_out_.tetrahedronlist,
-            tetgen_out_.neighborlist
+            reinterpret_cast<index_t*>(tetgen_out_.tetrahedronlist),
+            reinterpret_cast<index_t*>(tetgen_out_.neighborlist)
         );
     }
 
@@ -331,8 +331,8 @@ namespace GEO {
 
             // Remove the tets that are not in good_region.
             vector<index_t> old2new(
-                index_t(tetgen_out_.numberoftetrahedra),index_t(-1)
-            );
+		index_t(tetgen_out_.numberoftetrahedra),NO_INDEX
+	    );
             nb_tets = 0;
             for(
                 index_t t = 0;
@@ -376,8 +376,8 @@ namespace GEO {
 
         set_arrays(
             nb_tets,
-            tetgen_out_.tetrahedronlist,
-            tetgen_out_.neighborlist
+            reinterpret_cast<index_t*>(tetgen_out_.tetrahedronlist),
+            reinterpret_cast<index_t*>(tetgen_out_.neighborlist)
         );
     }
 

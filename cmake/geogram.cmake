@@ -1,3 +1,6 @@
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
 if(NOT DEFINED GEOGRAM_SOURCE_DIR)
    set(GEOGRAM_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
@@ -72,6 +75,13 @@ endif()
 
 if(GEOGRAM_WITH_LUA)
    add_definitions(-DGEOGRAM_WITH_LUA)
+endif()
+
+if(NOT GEOGRAM_FOR_DEBIAN)
+   add_definitions(-DGEOGRAM_USE_BUILTIN_DEPS)
+   set(GEOGRAM_USE_BUILTIN_DEPS TRUE)
+else()   
+   set(GEOGRAM_USE_BUILTIN_DEPS FALSE)
 endif()
 
 # This test is there to keep CMake happy about unused variable CMAKE_BUILD_TYPE

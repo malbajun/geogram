@@ -46,9 +46,30 @@
 #include <geogram/mesh/mesh_io.h>
 
 namespace {
-    GEO::CSGMesh_var example001() {
+
+    void configure_builder(GEO::CSGBuilder& builder) {
+	builder.set_simplify_coplanar_facets(
+	    GEO::CmdLine::get_arg_bool("simplify_coplanar_facets"),
+	    GEO::CmdLine::get_arg_double("coplanar_angle_tolerance")
+	);
+	builder.set_delaunay(GEO::CmdLine::get_arg_bool("delaunay"));
+	builder.set_detect_intersecting_neighbors(
+	    GEO::CmdLine::get_arg_bool("detect_intersecting_neighbors")
+	);
+	builder.set_fast_union(GEO::CmdLine::get_arg_bool("fast_union"));
+	builder.set_noop(GEO::CmdLine::get_arg_bool("noop"));
+	if(GEO::CmdLine::get_arg_bool("clear_cache")) {
+	    GEOCSG::OpenSCAD_cache_invalidate();
+	}
+	if(GEO::CmdLine::get_arg_bool("ignore_cache_time")) {
+	    GEOCSG::OpenSCAD_cache_ignore_time();
+	}
+    }
+
+    std::shared_ptr<GEO::Mesh> example001() {
         using namespace GEO;
         CSGBuilder B;
+	configure_builder(B);
         return B.difference({
                 B.sphere(25.0),
                 B.multmatrix(
@@ -66,9 +87,10 @@ namespace {
             });
     }
 
-    GEO::CSGMesh_var example002() {
+    std::shared_ptr<GEO::Mesh> example002() {
         using namespace GEO;
         CSGBuilder B;
+	configure_builder(B);
         return B.intersection({
                 B.difference({
                         B.union_instr({
@@ -94,9 +116,10 @@ namespace {
             });
     }
 
-    GEO::CSGMesh_var example003() {
+    std::shared_ptr<GEO::Mesh> example003() {
         using namespace GEO;
         CSGBuilder B;
+	configure_builder(B);
         return B.difference({
                 B.union_instr({
                         B.cube({30, 30, 30}),
@@ -112,9 +135,10 @@ namespace {
             });
     }
 
-    GEO::CSGMesh_var example004() {
+    std::shared_ptr<GEO::Mesh> example004() {
         using namespace GEO;
         CSGBuilder B;
+	configure_builder(B);
         return B.difference({
                 B.cube({30,30,30}),
                 B.sphere(20)
@@ -127,8 +151,6 @@ int main(int argc, char** argv) {
     try {
         GEO::initialize(GEO::GEOGRAM_INSTALL_ALL);
 
-        Stopwatch Wtot("Total time");
-
         CmdLine::import_arg_group("standard");
         CmdLine::import_arg_group("algo");
 
@@ -136,6 +158,11 @@ int main(int argc, char** argv) {
 
         CmdLine::declare_arg(
             "verbose",false,"makes intersection algorithm more chatty"
+        );
+
+        CmdLine::declare_arg(
+            "detailed_verbose", false,
+	    "makes intersection algorithm even more chatty"
         );
 
         CmdLine::declare_arg(
@@ -162,6 +189,19 @@ int main(int argc, char** argv) {
             "fast union mode (there is no cnx component completely inside)"
         );
 
+        CmdLine::declare_arg(
+            "noop", false, "do not evaluate 3D CSG operations (for testing)"
+        );
+
+	CmdLine::declare_arg(
+	    "clear_cache", false,
+	    "systematically regenerate files converted with OpenSCAD"
+	);
+
+	GEO::CmdLine::declare_arg(
+	    "ignore_cache_time", false,
+	    "ignore file modification time for deciding to use cache"
+	);
 
         if(
             !CmdLine::parse(
@@ -171,12 +211,14 @@ int main(int argc, char** argv) {
             return 1;
         }
 
+        Stopwatch Wtot("CSG (total)");
+
         std::string csg_filename = filenames[0];
 
         std::string output_filename =
             filenames.size() >= 2 ? filenames[1] : std::string("out.meshb");
 
-        CSGMesh_var result;
+	std::shared_ptr<Mesh> result;
 
         if(csg_filename == "example001") {
             result = example001();
@@ -186,21 +228,14 @@ int main(int argc, char** argv) {
             result = example003();
         } else if(csg_filename == "example004") {
             result = example004();
-        } else {
+	} else {
             CSGCompiler CSG;
-            CSG.builder().set_simplify_coplanar_facets(
-                CmdLine::get_arg_bool("simplify_coplanar_facets"),
-                CmdLine::get_arg_double("coplanar_angle_tolerance")
-            );
-            CSG.builder().set_delaunay(CmdLine::get_arg_bool("delaunay"));
-            CSG.builder().set_detect_intersecting_neighbors(
-                CmdLine::get_arg_bool("detect_intersecting_neighbors")
-            );
-            CSG.builder().set_fast_union(CmdLine::get_arg_bool("fast_union"));
+	    configure_builder(CSG.builder());
             CSG.set_verbose(CmdLine::get_arg_bool("verbose"));
+	    CSG.set_detailed_verbose(CmdLine::get_arg_bool("detailed_verbose"));
             result = CSG.compile_file(csg_filename);
         }
-        if(result.is_null()) {
+        if(result == nullptr) {
             Logger::err("CSG") << "No output (problem occured)" << std::endl;
             return 2;
         } else {

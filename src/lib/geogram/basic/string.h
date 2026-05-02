@@ -123,6 +123,27 @@ namespace GEO {
             std::string& right
         );
 
+
+        /**
+         * \brief Splits a string into two parts.
+         * \param[in] in the input string to split
+         * \param[in] separator the separator string
+         * \param[in] left the part of the input string on the left
+         *   of the separator or the empty string if the separator
+         *   did not appear in the input string
+         * \param[in] right the right of the input string on the left
+         *   of the separator or the empty string if the separator
+         *   did not appear in the input string
+         * \retval true if the separator was found in the input string
+         * \retval false otherwise
+         */
+        bool GEOGRAM_API split_string(
+            const std::string& in,
+            const std::string& separator,
+            std::string& left,
+            std::string& right
+        );
+
         /**
          * \brief Join multiple strings
          * \details Joins all the strings in list \p in into a single string
@@ -213,6 +234,53 @@ namespace GEO {
             const std::string& haystack, const std::string& needle
         );
 
+	/**
+	 * \brief Removes a prefix from a string
+	 * \param[in] s the string
+	 * \param[in] prefix the prefix to be removed
+	 * \return a new string with the prefix removed or \p s if \p s
+	 *  does not starts with \p prefix
+	 */
+	GEO_NODISCARD inline std::string remove_prefix(
+	    const std::string& s, const std::string& prefix
+	) {
+	    if(string_starts_with(s, prefix)) {
+		return s.substr(prefix.length());
+	    }
+	    return s;
+	}
+
+	/**
+	 * \brief Removes a suffix from a string
+	 * \param[in] s the string
+	 * \param[in] suffix the suffix
+	 * \return a new string with the suffix removed or \p s if \p s
+	 *  does not ends with \p suffix
+	 */
+	GEO_NODISCARD inline std::string remove_suffix(
+	    const std::string& s, const std::string& suffix
+	) {
+	    if(string_ends_with(s, suffix)) {
+		return s.substr(0, s.length() - suffix.length());
+	    }
+	    return s;
+	}
+
+	/**
+	 * \brief Removes the leading and trailing spaces from a string
+	 * \param[in] s a const reference to a string
+	 * \return the same string as \p s with leading and trailing
+	 *   spaces removed
+	 */
+	GEO_NODISCARD inline std::string trim_spaces(const std::string& s) {
+	    size_t first = s.find_first_not_of(' ');
+	    if (first == std::string::npos) {
+		return s;
+	    }
+	    size_t last = s.find_last_not_of(' ');
+	    return s.substr(first, (last - first + 1));
+	}
+
         /**
          * \brief Creates a string from a format string and additional
          *  arguments. Works like sprintf()
@@ -228,6 +296,14 @@ namespace GEO {
 #endif
 #endif
             ;
+
+	/**
+	 * \brief Converts a time in seconds into a human-readable string
+	 * \param[in] HMS_only if set, always returns a hh:mm:ss string,
+	 *  else returns the time in seconds and a (hh:mm:ss) if time is
+	 *  greater or equal to one minute.
+	 */
+	std::string GEOGRAM_API format_time(double seconds, bool HMS_only=false);
 
         /**
          * \brief Converts a typed value to a string

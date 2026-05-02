@@ -1144,14 +1144,16 @@ namespace GLUP {
     }
 
     void Context::prepare_to_draw(GLUPprimitive primitive) {
-#ifndef GEO_GL_440
-        geo_argused(primitive);
-#else
 
-        if(primitive == GLUP_POINTS || primitive == GLUP_SPHERES) {
+	// Note: webGL does not have glPointSize(), so gl_PoinSize
+	// is set by the points vertex shader
+	if(primitive == GLUP_SPHERES || primitive == GLUP_POINTS) {
+#ifdef GL_PROGRAM_POINT_SIZE
             glEnable(GL_PROGRAM_POINT_SIZE);
+#endif
         }
 
+#ifdef GEO_GL_440
         if(primitive_info_[primitive].GL_primitive == GL_PATCHES) {
             // We generate an isoline for each patch, with the
             // minimum tesselation level. This generates two
@@ -1169,7 +1171,11 @@ namespace GLUP {
     }
 
     void Context::done_draw(GLUPprimitive primitive) {
-        geo_argused(primitive);
+	if(primitive == GLUP_SPHERES || primitive == GLUP_POINTS) {
+#ifdef GL_PROGRAM_POINT_SIZE
+            glDisable(GL_PROGRAM_POINT_SIZE);
+#endif
+        }
     }
 
     void Context::update_matrices() {

@@ -47,13 +47,13 @@
 #include <geogram/mesh/mesh_io.h>
 #include <geogram/mesh/mesh_AABB.h>
 #include <geogram/voronoi/CVT.h>
-#include <geogram/NL/nl.h>
 #include <geogram/basic/command_line.h>
 #include <geogram/basic/stopwatch.h>
 #include <geogram/basic/progress.h>
 #include <geogram/bibliography/bibliography.h>
-
 #include <geogram/mesh/mesh_io.h>
+#include <geogram/NL/nl.h>
+
 
 /****************************************************************************/
 
@@ -67,7 +67,8 @@ namespace GEO {
         index_t nb_Newton_iter,
         index_t Newton_m,
         bool adjust,
-        double adjust_max_edge_distance
+        double adjust_max_edge_distance,
+	double adjust_border_importance
 
     ) {
 
@@ -147,14 +148,17 @@ namespace GEO {
         }
 
         if(adjust) {
-            mesh_adjust_surface(M_out, M_in, adjust_max_edge_distance);
+            mesh_adjust_surface(
+		M_out, M_in, adjust_max_edge_distance,
+		false, adjust_border_importance
+	    );
         }
     }
 
     /************************************************************************/
 
     /**
-     * \brief Gets the middle segment of a quat
+     * \brief Gets the middle segment of a quad
      * \param[in] AABB a reference to a MeshFacetsAABB
      * \param[in] f a facet
      * \param[out] q1 , q2 the extremities of the middle segment
@@ -165,14 +169,10 @@ namespace GEO {
         const MeshFacetsAABB& AABB, index_t f, vec3& q1, vec3& q2
     ) {
         geo_assert(AABB.mesh()->facets.nb_vertices(f) == 4);
-        index_t v1 = AABB.mesh()->facets.vertex(f,0);
-        index_t v2 = AABB.mesh()->facets.vertex(f,1);
-        index_t v3 = AABB.mesh()->facets.vertex(f,2);
-        index_t v4 = AABB.mesh()->facets.vertex(f,3);
-        vec3 p1(AABB.mesh()->vertices.point_ptr(v1));
-        vec3 p2(AABB.mesh()->vertices.point_ptr(v2));
-        vec3 p3(AABB.mesh()->vertices.point_ptr(v3));
-        vec3 p4(AABB.mesh()->vertices.point_ptr(v4));
+	vec3 p1 = AABB.mesh()->facets.point(f,0);
+	vec3 p2 = AABB.mesh()->facets.point(f,1);
+	vec3 p3 = AABB.mesh()->facets.point(f,2);
+	vec3 p4 = AABB.mesh()->facets.point(f,3);
         q1 = 0.5*(p1+p4);
         q2 = 0.5*(p2+p3);
     }
@@ -275,8 +275,8 @@ namespace GEO {
                     index_t c2 = M.facets.next_corner_around_facet(f, c1);
                     index_t v1 = M.facet_corners.vertex(c1);
                     index_t v2 = M.facet_corners.vertex(c2);
-                    const vec3& p1 = Geom::mesh_vertex(M, v1);
-                    const vec3& p2 = Geom::mesh_vertex(M, v2);
+                    const vec3& p1 = M.vertices.point(v1);
+                    const vec3& p2 = M.vertices.point(v2);
 
                     vec3 U1 = 0.5*height * normalize(Nv[v1]);
                     vec3 U2 = 0.5*height * normalize(Nv[v2]);
@@ -286,12 +286,10 @@ namespace GEO {
                     vec3 q3 = p2 - U2;
                     vec3 q4 = p1 - U1;
 
-                    for(index_t c=0; c<3; ++c) {
-                        ribbon.vertices.point_ptr(4*cur_border_e  )[c] = q1[c];
-                        ribbon.vertices.point_ptr(4*cur_border_e+1)[c] = q2[c];
-                        ribbon.vertices.point_ptr(4*cur_border_e+2)[c] = q3[c];
-                        ribbon.vertices.point_ptr(4*cur_border_e+3)[c] = q4[c];
-                    }
+		    ribbon.vertices.point(4*cur_border_e  ) = q1;
+		    ribbon.vertices.point(4*cur_border_e+1) = q2;
+		    ribbon.vertices.point(4*cur_border_e+2) = q3;
+		    ribbon.vertices.point(4*cur_border_e+3) = q4;
 
                     ribbon.facets.set_vertex(cur_border_e, 0, 4*cur_border_e  );
                     ribbon.facets.set_vertex(cur_border_e, 1, 4*cur_border_e+1);
@@ -309,7 +307,8 @@ namespace GEO {
         Mesh& surface,
         Mesh& reference,
         double max_edge_distance,
-        bool project_borders
+        bool project_borders,
+	double border_importance
     ) {
         // The algorithm:
         // 1) For each surface vertex v (located at Pv) with normal Nv,
@@ -345,10 +344,6 @@ namespace GEO {
         // adjacent to the border, so the option project_borders is deactivated
         // by default).
 
-        // Relative importance of border accuracy
-        // (weights least squares terms)
-        const double border_importance = 2.0;
-
         // Geometric search uses larger maximum
         // distance for points on the border.
         const double border_distance_factor = 10.0;
@@ -378,8 +373,8 @@ namespace GEO {
                 );
                 Nv[v1] += n;
                 double l = Geom::distance2(
-                    vec3(surface.vertices.point_ptr(v1)),
-                    vec3(surface.vertices.point_ptr(v2))
+                    surface.vertices.point(v1),
+                    surface.vertices.point(v2)
                 );
                 l = ::sqrt(l);
                 Lv[v1] += l;
@@ -420,8 +415,8 @@ namespace GEO {
                     index_t c2 = surface.facets.next_corner_around_facet(f, c1);
                     index_t v1 = surface.facet_corners.vertex(c1);
                     index_t v2 = surface.facet_corners.vertex(c2);
-                    const vec3& p1 = Geom::mesh_vertex(surface, v1);
-                    const vec3& p2 = Geom::mesh_vertex(surface, v2);
+                    const vec3& p1 = surface.vertices.point(v1);
+                    const vec3& p2 = surface.vertices.point(v2);
                     vec3 Ne = cross(p2 - p1, N);
                     Nv[v1] += Ne;
                     Nv[v2] += Ne;
@@ -452,7 +447,7 @@ namespace GEO {
         // nearest point along Nv
         vector<vec3> Qv(surface.vertices.nb());
         for(index_t v: surface.vertices) {
-            vec3 p(surface.vertices.point_ptr(v));
+            vec3 p = surface.vertices.point(v);
             if(v_on_border[v] && reference_has_borders) {
                 Qv[v] = nearest_along_bidirectional_ray(
                     border_ribbon_AABB, Ray(p, Nv[v]),
@@ -506,7 +501,7 @@ namespace GEO {
             for(index_t lv=0; lv<d; ++lv) {
                 index_t v= surface.facets.vertex(f,lv);
                 Nf += Nv[v];
-                Pf += vec3(surface.vertices.point_ptr(v));
+                Pf += surface.vertices.point(v);
                 Lf += Lv[v];
             }
             Pf = (1.0 / double(d))*Pf;
@@ -542,8 +537,8 @@ namespace GEO {
                         );
                         index_t v1 = surface.facet_corners.vertex(c1);
                         index_t v2 = surface.facet_corners.vertex(c2);
-                        const vec3& p1 = Geom::mesh_vertex(surface, v1);
-                        const vec3& p2 = Geom::mesh_vertex(surface, v2);
+                        const vec3& p1 = surface.vertices.point(v1);
+                        const vec3& p2 = surface.vertices.point(v2);
                         vec3 p = 0.5*(p1+p2);
                         vec3 N = 0.5*(Nv[v1] + Nv[v2]);
                         vec3 q = nearest_along_bidirectional_ray(
@@ -579,26 +574,21 @@ namespace GEO {
         // the solution of the least squares problem
         // at v
         for(index_t v: surface.vertices) {
-            vec3 p(surface.vertices.point_ptr(v));
-            p = p + nlGetVariable(v)*Nv[v];
-            for(index_t c=0; c<3; ++c) {
-                surface.vertices.point_ptr(v)[c] = p[c];
-            }
+            vec3& p = surface.vertices.point(v);
+            p += nlGetVariable(v)*Nv[v];
         }
 
         // (Brutally) project border vertices
         if(project_borders && nb_v_on_border != 0 && reference_has_borders) {
             for(index_t v: surface.vertices) {
                 if(v_on_border[v]) {
-                    vec3 p(surface.vertices.point_ptr(v));
+                    vec3 p = surface.vertices.point(v);
                     vec3 q = nearest_along_bidirectional_ray(
                         border_ribbon_AABB, Ray(p, Nv[v]),
                         border_distance_factor*max_edge_distance*0.5*(Lv[v]),
                         true
                     );
-                    for(index_t c=0; c<3; ++c) {
-                        surface.vertices.point_ptr(v)[c] = q[c];
-                    }
+		    surface.vertices.point(v) = q;
                 }
             }
         }

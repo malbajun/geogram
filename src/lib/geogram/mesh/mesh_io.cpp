@@ -39,6 +39,7 @@
 
 #include <geogram/mesh/mesh_io.h>
 #include <geogram/mesh/mesh.h>
+#include <geogram/mesh/mesh_repair.h>
 #include <geogram/mesh/index.h>
 #include <geogram/points/colocate.h>
 #include <geogram/basic/line_stream.h>
@@ -127,16 +128,15 @@ namespace GEO {
     inline void get_mesh_point(
         const Mesh& M, index_t v, double* coords, index_t dim
     ) {
-        geo_debug_assert(M.vertices.dimension() >= dim);
         if(M.vertices.single_precision()) {
             const float* p = M.vertices.single_precision_point_ptr(v);
             for(index_t c=0; c<dim; ++c) {
-                coords[c] = double(p[c]);
+                coords[c] = (c < M.vertices.dimension()) ? double(p[c]) : 0.0;
             }
         } else {
             const double* p = M.vertices.point_ptr(v);
             for(index_t c=0; c<dim; ++c) {
-                coords[c] = p[c];
+                coords[c] = (c < M.vertices.dimension()) ? p[c] : 0.0;
             }
         }
     }
@@ -247,7 +247,7 @@ namespace GEO {
                             unbind_attributes();
                             return false;
                         }
-                        index_t prev = index_t(-1);
+                        index_t prev = NO_INDEX;
                         for(index_t i=1; i<in.nb_fields(); ++i) {
                             signed_index_t s_vertex_index =
                                 in.field_as_int(i);
@@ -272,7 +272,7 @@ namespace GEO {
                                 unbind_attributes();
                                 return false;
                             }
-                            if(prev != index_t(-1)) {
+                            if(prev != NO_INDEX) {
                                 M.edges.create_edge(prev-1,vertex_index-1);
                             }
                             prev = vertex_index;
@@ -377,8 +377,8 @@ namespace GEO {
                             facet_tex_vertices.size() != facet_vertices.size()
                         ) {
                             Logger::err("I/O")
-                                << "Line " << in.line_number()
-                                << ": some facet vertices do not have tex vertices"
+                                << "Line " << in.line_number() << ": "
+                                << "some facet vertices do not have tex vertices"
                                 << std::endl;
                             unbind_attributes();
                             return false;
@@ -527,7 +527,7 @@ namespace GEO {
                 index_t nb_vt = Geom::colocate_by_lexico_sort(
                     &tex_coord_[0], 2, M.facet_corners.nb(), vt_old2new, 2
                 );
-                vt_index.assign(M.facet_corners.nb(), index_t(-1));
+                vt_index.assign(M.facet_corners.nb(), NO_INDEX);
                 index_t cur_vt=0;
                 for(index_t c: M.facet_corners) {
                     if(vt_old2new[c] == c) {
@@ -2462,6 +2462,25 @@ namespace GEO {
             } else {
                 result = load_ascii(filename, M, ioflags);
             }
+	    // STL files have isolated triangles, in general
+	    // the user wants to merge duplicated vertices and connect
+	    // all the triangles, so let's do that.
+	    if(result) {
+		bool fp32 = M.vertices.single_precision();
+		if(fp32) {
+		    M.vertices.set_double_precision();
+		}
+		mesh_repair(
+		    M,
+		    GEO::MeshRepairMode(
+			GEO::MESH_REPAIR_COLOCATE | GEO::MESH_REPAIR_DUP_F
+		    ),
+		    0.0
+		);
+		if(fp32) {
+		    M.vertices.set_single_precision();
+		}
+	    }
             return result;
         }
 
@@ -2629,7 +2648,7 @@ namespace GEO {
         ) override {
             geo_argused(ioflags);
             index_t nb_vertices = get_nb_vertices(filename);
-            if(nb_vertices == index_t(-1)) {
+            if(nb_vertices == NO_INDEX) {
                 return false;
             }
 
@@ -2763,13 +2782,13 @@ namespace GEO {
          *  required size, instead of growing.
          * \param[in] filename the name of the file.
          * \return the number of vertices in the file, or
-         *  index_t(-1) if the file could not be opened.
+         *  NO_INDEX if the file could not be opened.
          */
         index_t get_nb_vertices(const std::string& filename) {
             index_t result = 0;
             LineInput in(filename);
             if(!in.OK()) {
-                return index_t(-1);
+                return NO_INDEX;
             }
             while(!in.eof() && in.get_line()) {
                 in.get_fields();
@@ -2787,7 +2806,7 @@ namespace GEO {
                         << "Line " << in.line_number()
                         << ": wrong number of fields"
                         << std::endl;
-                    return index_t(-1);
+                    return NO_INDEX;
                 }
             }
             return result;
@@ -3295,6 +3314,12 @@ namespace GEO {
                 return false;
             }
 
+	    // Sanity check for the sentry
+	    geo_assert(
+		M.facets.nb() == 0 || (
+		    M.facets.corners_end(M.facets.nb()-1) == M.facet_corners.nb()
+		)
+	    );
 
             return true;
         }
@@ -3745,12 +3770,13 @@ namespace GEO {
                     in.current_attribute().element_type
                 )
             ) {
-                Logger::warn("I/O") << "Skipping attribute "
-                                    << in.current_attribute().name
-                                    << ":"
-                                    << demangle(in.current_attribute().element_type)
-                                    << " (unknown type)"
-                                    << std::endl;
+                Logger::warn("I/O")
+		    << "Skipping attribute "
+		    << in.current_attribute().name
+		    << ":"
+		    << demangle(in.current_attribute().element_type)
+		    << " (unknown type)"
+		    << std::endl;
                 return;
             }
             AttributeStore* store =
@@ -3784,7 +3810,10 @@ namespace GEO {
                 if(
                     AttributeStore::element_typeid_name_is_known(
                         store->element_typeid_name()
-                    )
+                    ) &&
+		    AttributeStore::element_by_typeid_name_is_trivially_copyable(
+			store->element_typeid_name()
+		    )
                 ) {
                     std::string element_type =
                         AttributeStore::element_type_name_by_element_typeid_name(
@@ -3840,6 +3869,24 @@ namespace GEO {
                 << std::endl;
             return false;
         }
+
+        /**
+         * \copydoc MeshIOHandler::save()
+         */
+        bool save(
+            const Mesh& M, OutputGeoFile& out,
+            const MeshIOFlags& ioflags = MeshIOFlags(),
+            bool save_command_line = false
+        ) override {
+            geo_argused(M);
+            geo_argused(out);
+            geo_argused(ioflags);
+	    geo_argused(save_command_line);
+            Logger::err("I/O")
+                << "graphite file format not supported for writing"
+                << std::endl;
+            return false;
+	}
     };
 
     /************************************************************************/
@@ -3990,7 +4037,7 @@ namespace GEO {
                     if(kw == "Vertices") {
                         nb_vertices = get_number(in);
                         vertices.resize(nb_vertices*3);
-                        ovm_to_vertex_id.assign(nb_vertices*3, index_t(-1));
+                        ovm_to_vertex_id.assign(nb_vertices*3, NO_INDEX);
                         FOR(v, nb_vertices) {
                             in.get_line();
                             in.get_fields();
@@ -4116,7 +4163,7 @@ namespace GEO {
                                     // (by inverting its least significant bit, with the
                                     // XOR e ^(index_t(1)) operation).
                                     index_t ovm_v = edges[e];
-                                    ovm_to_vertex_id[ ovm_v ] = index_t(-1);
+                                    ovm_to_vertex_id[ ovm_v ] = NO_INDEX;
                                 }
                             }
 
@@ -4131,7 +4178,7 @@ namespace GEO {
                                         e = e ^ index_t(1);
                                     }
                                     index_t ovm_v = edges[e];
-                                    if(ovm_to_vertex_id[ovm_v] == index_t(-1)) {
+                                    if(ovm_to_vertex_id[ovm_v] == NO_INDEX) {
                                         const double* p = &(vertices[ ovm_v*3 ]);
                                         index_t new_v = M.vertices.create_vertex();
                                         set_mesh_point(M, new_v, p, 3);
@@ -4312,7 +4359,7 @@ namespace GEO {
                         index_t iv2 =
                             index_t(vertex_id[M.facet_corners.vertex(c2)]);
                         bindex K(iv1, iv2, bindex::KEEP_ORDER);
-                        index_t ie = index_t(-1);
+                        index_t ie = NO_INDEX;
                         auto it = edge_to_id.find(K);
                         if(it == edge_to_id.end()) {
                             ie = 2*edge_to_id[bindex(iv1,iv2)]+1;
@@ -4426,14 +4473,14 @@ namespace GEO {
             const Mesh& M, index_t f, const Attribute<int>& vertex_id,
             bool invert=false
         ) {
-            index_t min_iv = index_t(-1);
-            index_t min_corner = index_t(-1);
+            index_t min_iv = NO_INDEX;
+            index_t min_corner = NO_INDEX;
             for(
                 index_t c=M.facets.corners_begin(f);
                 c<M.facets.corners_end(f); ++c
             ) {
                 index_t iv = index_t(vertex_id[M.facet_corners.vertex(c)]);
-                if(min_iv == index_t(-1) || iv < min_iv) {
+                if(min_iv == NO_INDEX || iv < min_iv) {
                     min_corner = c;
                     min_iv = iv;
                 }
@@ -4868,7 +4915,7 @@ namespace GEO {
             return false;
         }
 
-        if(!M.vertices.single_precision()) {
+        if(!M.vertices.single_precision() && M.vertices.nb() > 0) {
             index_t nb = M.vertices.nb() * M.vertices.dimension();
             double* p = M.vertices.point_ptr(0);
             bool has_nan = false;

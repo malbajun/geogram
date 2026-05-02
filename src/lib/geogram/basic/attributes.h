@@ -41,9 +41,9 @@
 #ifndef GEOGRAM_BASIC_ATTRIBUTES
 #define GEOGRAM_BASIC_ATTRIBUTES
 
-
 #include <geogram/basic/common.h>
 #include <geogram/basic/memory.h>
+#include <geogram/basic/life_cycle.h>
 #include <geogram/basic/numeric.h>
 #include <geogram/basic/process.h>
 #include <geogram/basic/geofile.h>
@@ -120,6 +120,14 @@ namespace GEO {
     }
 
     /**
+     * \brief Gets a pointer to the storage
+     * \return a pointer to the first element
+     */
+    Memory::pointer base_addr() const {
+	return base_addr_;
+    }
+
+    /**
      * \brief Registers this observer to an AttributeStore.
      * \param[in] store a pointer to the AttributeStore.
      */
@@ -143,6 +151,16 @@ namespace GEO {
         size_ = 0;
         dimension_ = 0;
         disconnected_ = true;
+    }
+
+    /**
+     * \brief Tests whether this AttributeStoreObserver was disconnected
+     * \retval true if this AttributeStoreObserver was disconnected,
+     * \retval false otherwise
+     * \see disconnect()
+     */
+    bool disconnected() const {
+	return disconnected_;
     }
 
     protected:
@@ -175,6 +193,14 @@ namespace GEO {
          */
         virtual AttributeStore* create_attribute_store(index_t dimension) = 0;
 
+	/**
+	 * \brief Tests whether elements of this attribute can be trivially
+	 *   copyable
+	 * \retval true if elements can be copied with memcpy and read, saved
+	 *   using fread(), fwrite
+	 * \retval false otherwise
+	 */
+	virtual bool elements_are_trivially_copyable() const = 0;
 
     private:
         std::string element_type_name_;
@@ -203,7 +229,7 @@ namespace GEO {
      *  attributes and can be greater for vector
      *  attributes.
      */
-    AttributeStore(index_t elemsize, index_t dim=1);
+    AttributeStore(size_t elemsize, index_t dim=1);
 
     /**
      * \brief AttributeStore destructor.
@@ -312,12 +338,11 @@ namespace GEO {
      * \param[in] permutation the permutation.
      *  It is temporarily changed during execution of the
      *  function, but identical to the input on exit.
-     * \note This function uses memcpy(). If required, it
-     *  can be overloaded in derived classes.
      */
     virtual void apply_permutation(
         const vector<index_t>& permutation
     );
+
 
     /**
      * \brief Compresses the stored attributes, by
@@ -333,17 +358,12 @@ namespace GEO {
      * \endcode
      * \param[in] old2new the index mapping to be applied.
      * \pre old2new[i] <= i || old2new[i] == index_t(-1)
-     * \note This function uses memcpy(). If required, it
-     *  can be overloaded in derived classes.
      */
     virtual void compress(const vector<index_t>& old2new);
 
     /**
      * \brief Zeroes all the memory associated with this
      *  AttributeStore.
-     * \details Subclasses may overload this function for
-     *  attributes that have non "plain ordinary datatypes"
-     *  and that need a more elaborate initialization mechanism.
      */
     virtual void zero();
 
@@ -363,12 +383,19 @@ namespace GEO {
     void copy_item(index_t to, index_t from) {
         geo_debug_assert(from < cached_size_);
         geo_debug_assert(to < cached_size_);
-        index_t item_size = element_size_ * dimension_;
-        Memory::copy(
-            cached_base_addr_+to*item_size,
-            cached_base_addr_+from*item_size,
-            item_size
-        );
+	size_t item_size = element_size_ * dimension_;
+	if(lifecycle_.is_null()) {
+	    Memory::copy(
+		cached_base_addr_+to*item_size,
+		cached_base_addr_+from*item_size,
+		item_size
+	    );
+	} else {
+	    lifecycle_->assign(
+		cached_base_addr_+to*item_size,
+		cached_base_addr_+from*item_size
+	    );
+	}
     }
 
     /**
@@ -377,11 +404,15 @@ namespace GEO {
      */
     void zero_item(index_t to) {
         geo_debug_assert(to < cached_size_);
-        index_t item_size = element_size_ * dimension_;
-        Memory::clear(
-            cached_base_addr_+to*item_size,
-            item_size
-        );
+	size_t item_size = element_size_ * dimension_;
+	if(lifecycle_.is_null()) {
+	    Memory::clear(
+		cached_base_addr_+to*item_size,
+		item_size
+	    );
+	} else {
+	    lifecycle_->reset(cached_base_addr_+to*item_size);
+	}
     }
 
     /**
@@ -430,7 +461,7 @@ namespace GEO {
      * \return the size of an element, in bytes
      */
     size_t element_size() const {
-        return size_t(element_size_);
+        return element_size_;
     }
 
     /**
@@ -465,6 +496,44 @@ namespace GEO {
             typeid_name_to_type_name_.find(element_typeid_name) !=
             typeid_name_to_type_name_.end()
         );
+    }
+
+    /**
+     * \brief Tests whether an element type is trivially copyable
+     * \param[in] element_type_name the type name of the elements, as
+     *  registered to the system using geo_register_attribute_type<T>()
+     * \retval true if elements can be copied with memcpy(), read and write
+     *  using fread() , fwrite()
+     * \retval false otherwise
+     * \pre the element type was registered using geo_register_attribute_type.
+     */
+    static bool element_by_type_name_is_trivially_copyable(
+        const std::string& element_type_name
+    ) {
+	geo_debug_assert(element_type_name_is_known(element_type_name));
+	return (
+	    type_name_to_creator_[
+		element_type_name
+	    ]->elements_are_trivially_copyable()
+	);
+    }
+
+    /**
+     * \brief Tests whether an element type is trivially copyable
+     * \param[in] element_typeid_name the type name of the elements, as
+     *  given by typeid(T).name()
+     * \retval true if elements can be copied with memcpy(), read and write
+     *  using fread() , fwrite()
+     * \retval false otherwise
+     * \pre the element type was registerd using geo_register_attribute_type.
+     */
+    static bool element_by_typeid_name_is_trivially_copyable(
+        const std::string& element_typeid_name
+    ) {
+	geo_debug_assert(element_typeid_name_is_known(element_typeid_name));
+	std::string element_type_name =
+	    typeid_name_to_type_name_[element_typeid_name];
+	return element_by_type_name_is_trivially_copyable(element_type_name);
     }
 
     /**
@@ -525,25 +594,30 @@ namespace GEO {
         AttributeStoreCreator* creator,
         const std::string& element_type_name,
         const std::string& element_typeid_name
-    ) {
-        if(element_type_name_is_known(element_type_name)) {
-            Logger::warn("Attributes") << element_type_name
-                                       << " already registered"
-                                       << std::endl;
-            if(element_typeid_name_is_known(element_typeid_name)) {
-                bool already_registered_attribute_has_same_type = (
-                    type_name_to_typeid_name_[element_type_name] ==
-                    element_typeid_name
-                );
-                geo_assert(already_registered_attribute_has_same_type);
-            }
-        }
-        type_name_to_creator_[element_type_name] = creator;
-        typeid_name_to_type_name_[element_typeid_name] = element_type_name;
-        type_name_to_typeid_name_[element_type_name] = element_typeid_name;
+    );
+
+    /**
+     * \brief Gets the LifeCycle.
+     * \details The LifeCycle know how to construct, destroy, copy-construct
+     *  or copy objects.
+     * \return a pointer to the LifeCycle or nullptr if datatype is a
+     *  POD (Plain Ordinary Datatype).
+     */
+    LifeCycle* lifecycle() const {
+	return lifecycle_;
     }
 
     protected:
+
+    /**
+     * \brief implementation of apply_permutation() used when there is a
+     *  lifecycle, that is, when attribute type is not trivially copyable.
+     * \see apply_permutation()
+     */
+    void apply_permutation_with_lifecycle(
+        const vector<index_t>& permutation
+    );
+
     /**
      * \brief If size or base address differ from the
      *  cached values, notify all the observers,
@@ -577,11 +651,12 @@ namespace GEO {
 
 
     protected:
-    index_t element_size_;
+    size_t element_size_;
     index_t dimension_;
     Memory::pointer cached_base_addr_;
     index_t cached_size_;
     index_t cached_capacity_;
+    LifeCycle_var lifecycle_;
     std::set<AttributeStoreObserver*> observers_;
     Process::spinlock lock_;
 
@@ -614,7 +689,10 @@ namespace GEO {
          *  attributes.
          */
         TypedAttributeStore(index_t dim=1) :
-            AttributeStore(index_t(sizeof(T)),dim) {
+            AttributeStore(sizeof(T),dim) {
+	    if(!std::is_trivially_copyable<T>::value) {
+		lifecycle_ = new GenericLifeCycle<T>();
+	    }
         }
 
         void resize(index_t new_size) override {
@@ -647,7 +725,6 @@ namespace GEO {
             notify(nullptr, 0, dimension_);
         }
 
-
         void redim(index_t dim) override {
             if(dim == dimension()) {
                 return;
@@ -668,9 +745,7 @@ namespace GEO {
             );
         }
 
-        bool elements_type_matches(
-            const std::string& type_name
-        ) const override {
+        bool elements_type_matches(const std::string& type_name) const override {
             return type_name == typeid(T).name();
         }
 
@@ -683,6 +758,7 @@ namespace GEO {
                 new TypedAttributeStore<T>(dimension());
             result->resize(size());
             result->store_ = store_;
+	    result->lifecycle_ = lifecycle_;
             return result;
         }
 
@@ -709,8 +785,8 @@ namespace GEO {
 
     protected:
         void notify(
-            Memory::pointer base_addr, index_t size, index_t dim
-        ) override {
+	    Memory::pointer base_addr, index_t size, index_t dim
+	) override {
             AttributeStore::notify(base_addr, size, dim);
             geo_assert(size*dim <= store_.size());
         }
@@ -786,6 +862,13 @@ namespace GEO {
         AttributeStore* create_attribute_store(index_t dim) override{
             return new TypedAttributeStore<T>(dim);
         }
+
+        /**
+         * \copydoc AttributeStoreCreator::elements_are_trivially_copyable()
+         */
+	bool elements_are_trivially_copyable() const override {
+	    return(std::is_trivially_copyable<T>::value);
+	}
     };
 
     /*********************************************************************/
@@ -1080,7 +1163,7 @@ namespace GEO {
      *   instance by passing it by-value to a function).
      *   Use copy() instead.
      */
-    AttributesManager(const AttributesManager& rhs);
+    AttributesManager(const AttributesManager& rhs) = delete;
 
     /**
      * \brief Forbids copy.
@@ -1089,7 +1172,7 @@ namespace GEO {
      *   instance by passing it by-value to a function).
      *   Use copy() instead.
      */
-    const AttributesManager& operator=(const AttributesManager& rhs);
+    const AttributesManager& operator=(const AttributesManager& rhs) = delete;
 
     private:
     index_t size_;
@@ -1113,7 +1196,8 @@ namespace GEO {
          */
         AttributeBase() :
             manager_(nullptr),
-            store_(nullptr) {
+            store_(nullptr),
+	    existed_already_(false) {
         }
 
         /**
@@ -1127,7 +1211,8 @@ namespace GEO {
          */
         AttributeBase(AttributesManager& manager, const std::string& name) :
             manager_(nullptr),
-            store_(nullptr) {
+            store_(nullptr),
+	    existed_already_(false) {
             bind(manager, name);
         }
 
@@ -1139,6 +1224,17 @@ namespace GEO {
         bool is_bound() const {
             return (store_ != nullptr && !disconnected_);
         }
+
+	/**
+	 * \brief Tests whether the latest bound attribute existed already
+	 * \retval true if the latest bound attribute existed already in the
+	 *   AttributeManager
+	 * \retval false if the latest bound attribute was created in the
+	 *   AttributeManager when bound
+	 */
+	bool existed_already() const {
+	    return existed_already_;
+	}
 
         /**
          * \brief Unbinds this Attribute.
@@ -1154,6 +1250,7 @@ namespace GEO {
             }
             manager_ = nullptr;
             store_ = nullptr;
+	    existed_already_ = false;
         }
 
         /**
@@ -1172,8 +1269,10 @@ namespace GEO {
             if(store_ == nullptr) {
                 store_ = new TypedAttributeStore<T>();
                 manager_->bind_attribute_store(name,store_);
+		existed_already_ = false;
             } else {
                 geo_assert(store_->elements_type_matches(typeid(T).name()));
+		existed_already_ = true;
             }
             register_me(store_);
         }
@@ -1196,14 +1295,16 @@ namespace GEO {
             if(store_ != nullptr) {
                 geo_assert(store_->elements_type_matches(typeid(T).name()));
                 register_me(store_);
+		existed_already_ = true;
                 return true;
             }
+	    existed_already_ = false;
             return false;
         }
 
         /**
          * \brief Binds this Attribute to an AttributesManager if it
-         *  already exists in the AttributesManager and tyopes are compatible.
+         *  already exists in the AttributesManager and types are compatible.
          * \param[in] manager a reference to the AttributesManager
          * \param[in] name name of the attribute
          * \pre !is_bound()
@@ -1217,6 +1318,7 @@ namespace GEO {
             }
             store_ = manager.find_attribute_store(name);
             if(store_ != nullptr) {
+		existed_already_ = true;
                 if( !store_->elements_type_matches(typeid(T).name()) ) {
                     store_ = nullptr;
                     return false;
@@ -1225,6 +1327,7 @@ namespace GEO {
                 register_me(store_);
                 return true;
             }
+	    existed_already_ = false;
             return false;
         }
 
@@ -1381,6 +1484,7 @@ namespace GEO {
     protected:
         AttributesManager* manager_;
         AttributeStore* store_;
+	bool existed_already_;
     } ;
 
     /*********************************************************************/
@@ -1396,32 +1500,9 @@ namespace GEO {
         typedef AttributeBase<T> superclass;
 
         /**
-         * \brief Tests at compile time whether type can be used
-         *  in an Attribute. If not the case generates a compile-time
-         *  error.
-         */
-        static void static_test_type() {
-            // Attributes are only implemented for classes that
-            // can be copied with memcpy() and read/written to
-            // files using fread()/fwrite()
-#if __GNUG__ && __GNUC__ < 5 && !__clang__
-            static_assert(
-                __has_trivial_copy(T),
-                "Attribute only implemented for types that can be copied with memcpy()"
-            );
-#else
-            static_assert(
-                std::is_trivially_copyable<T>::value,
-                "Attribute only implemented for types that can be copied with memcpy()"
-            );
-#endif
-        }
-
-        /**
          * \brief Creates an uninitialized (unbound) Attribute.
          */
         Attribute() : superclass() {
-            static_test_type();
         }
 
         /**
@@ -1435,7 +1516,6 @@ namespace GEO {
          */
         Attribute(AttributesManager& manager, const std::string& name) :
             superclass(manager, name) {
-            static_test_type();
         }
 
         /**
@@ -1444,6 +1524,7 @@ namespace GEO {
          * \return a modifiable reference to the \p i%th element
          */
         T& operator[](index_t i) {
+	    geo_debug_assert(superclass::is_bound());
             geo_debug_assert(i < superclass::nb_elements());
             return ((T*)(void*)superclass::base_addr_)[i];
         }
@@ -1454,6 +1535,7 @@ namespace GEO {
          * \return a const reference to the \p i%th element
          */
         const T& operator[](index_t i) const {
+	    geo_debug_assert(superclass::is_bound());
             geo_debug_assert(i < superclass::nb_elements());
             return ((const T*)(void*)superclass::base_addr_)[i];
         }
@@ -1464,6 +1546,7 @@ namespace GEO {
          * \param[in] val the value
          */
         void fill(const T& val) {
+	    geo_debug_assert(superclass::is_bound());
             for(index_t i=0; i<superclass::nb_elements(); ++i) {
                 (*this)[i] = val;
             }
@@ -1504,11 +1587,11 @@ namespace GEO {
         /**
          * \brief Forbids copy.
          */
-        Attribute(const Attribute<T>& rhs);
+        Attribute(const Attribute<T>& rhs) = delete;
         /**
          * \brief Forbids copy.
          */
-        Attribute<T>& operator=(const Attribute<T>& rhs);
+        Attribute<T>& operator=(const Attribute<T>& rhs) = delete;
     };
 
     /*********************************************************************/
@@ -1664,6 +1747,20 @@ namespace GEO {
             }
         }
 
+        /**
+         * \brief Copies all the values from another attribute.
+         * \param[in] rhs the attribute to be copied.
+         * \details rhs needs to have the same size and dimension
+         *  as this Attribute.
+         */
+        void copy(const Attribute<bool>& rhs) {
+            geo_assert(rhs.size() == superclass::size());
+            geo_assert(rhs.dimension() == superclass::dimension());
+            for(index_t i=0; i<superclass::nb_elements(); ++i) {
+		element(i) = rhs.element(i);
+            }
+        }
+
     protected:
 
         friend class BoolAttributeAccessor;
@@ -1693,11 +1790,11 @@ namespace GEO {
         /**
          * \brief Forbids copy.
          */
-        Attribute(const Attribute<bool>& rhs);
+        Attribute(const Attribute<bool>& rhs) = delete;
         /**
          * \brief Forbids copy.
          */
-        Attribute<bool>& operator=(const Attribute<bool>& rhs);
+        Attribute<bool>& operator=(const Attribute<bool>& rhs) = delete;
     } ;
 
     /***********************************************************/

@@ -48,6 +48,7 @@
 #include <geogram/basic/attributes.h>
 #include <geogram/basic/debug_stream.h>
 #include <functional>
+#include <tuple>
 
 /**
  * \file geogram/mesh/mesh_surface_intersection.h
@@ -176,8 +177,21 @@ namespace GEO {
      *  Default is unset.
      */
     void set_verbose(bool x) {
-        verbose_      = x;
+        verbose_ = x;
+	if(!verbose_ && fine_verbose_) {
+	    fine_verbose_ = false;
+	}
+    }
+
+    /**
+     * \brief Display detailed information while computing the intersection.
+     *  Default is unset.
+     */
+    void set_fine_verbose(bool x) {
         fine_verbose_ = x;
+	if(fine_verbose_ && !verbose_) {
+	    verbose_ = true;
+	}
     }
 
     /**
@@ -359,6 +373,17 @@ namespace GEO {
     ExactPoint exact_vertex(index_t v) const;
 
     /**
+     * \brief Tests whether a given vertex is an original mesh vertex or an
+     *  intersection
+     * \param[in] v a vertex of the mesh
+     * \retval true if v is an original vertex of the mesh
+     * \retval false if v is an intersection vertex, with exact coordinates
+     */
+    bool is_original_vertex(index_t v) const {
+	return (vertex_to_exact_point_[v] == nullptr);
+    }
+
+    /**
      * \brief Finds or creates a vertex in the mesh, by exact coordinates
      * \details If there is already a vertex with coordinates \p p, then
      *  the existing vertex is returned, else a new vertex is constructed.
@@ -422,6 +447,53 @@ namespace GEO {
      */
     void mark_external_shell(vector<index_t>& on_external_shell);
 
+    /**
+     * \brief Gets the vertices of the initial facet (in mesh_copy_) that
+     *   supports a facet in the intersection mesh (in mesh_)
+     * \param[in] f the facet in mesh_
+     * \return the index of the original facet in mesh_copy_
+     */
+    index_t get_initial_facet(index_t f) const {
+	return original_facet_id_[f];
+    }
+
+    /**
+     * \brief Indicates whether the initial facet (in mesh_copy_) that
+     *   supports a facet in the intersection mesh (in mesh_) has same
+     *   orientation or not.
+     * \param[in] f the facet in mesh_
+     * \retval false if \p f and the initial facet in mesh_copy_ have the
+     *   same orientation
+     * \retval true otherwise
+     */
+    bool initial_facet_is_flipped(index_t f) const {
+	return f_is_flipped_[f];
+    }
+
+    /**
+     * \brief Gets the vertices of the initial facet (in mesh_copy_) that
+     *   supports a facet in the intersection mesh (in mesh_)
+     * \details Orientation is preserved. It is important, since it makes
+     *   it possible to call predicates with points that have simpler
+     *   coordinates
+     * \param[in] f the facet in mesh_
+     * \return the three vertices of the initial facet in mesh_copy_
+     *  as a tuple of vec3
+     */
+    std::tuple<vec3, vec3, vec3> get_initial_facet_vertices(index_t f) const {
+	// All facets are duplicated before radial sort. If f is one of
+	// the duplicated facets then its orientation is flipped as
+	// compared to initial facet.
+	index_t orig_f = original_facet_id_[f];
+	vec3 p1 = mesh_copy_.facets.point(orig_f,0);
+	vec3 p2 = mesh_copy_.facets.point(orig_f,1);
+	vec3 p3 = mesh_copy_.facets.point(orig_f,2);
+	if(f_is_flipped_[f]) {
+	    std::swap(p1,p3);
+	}
+	return std::make_tuple(p1,p2,p3);
+    }
+
     protected:
 
     /**
@@ -431,12 +503,12 @@ namespace GEO {
     public:
         /**
          * \brief RadialSort constructor
-         * \param[in] mesh the MeshSurfaceIntersection
+         * \param[in] I a reference to the MeshSurfaceIntersection
          */
-        RadialSort(
-            const MeshSurfaceIntersection& mesh
-        ) : mesh_(mesh),
-            h_ref_(index_t(-1)),
+        RadialSort(const MeshSurfaceIntersection& I) :
+	    I_(I),
+	    mesh_(I_.target_mesh()),
+            h_ref_(NO_INDEX),
             degenerate_(false)
         {
         }
@@ -465,30 +537,7 @@ namespace GEO {
             return degenerate_;
         }
 
-        /**
-         * \brief Computes a vector of arbitrary length with its
-         *  direction given by two points
-         * \param[in] p1 , p2 the two points in homogeneous coordinates
-         * \return a vector in cartesian coordinates with the same
-         *  direction and orientation as \p p2 - \p p1
-         */
-        static exact::vec3 exact_direction(
-            const ExactPoint& p1, const ExactPoint& p2
-        );
-
-        /**
-         * \brief Computes an interval vector of arbitrary length with its
-         *  direction given by two points
-         * \param[in] p1 , p2 the two points in homogeneous coordinates
-         * \return an interval vector in cartesian coordinates
-         *  with the same direction and orientation as \p p2 - \p p1
-         */
-        static vec3I exact_direction_I(
-            const ExactPoint& p1, const ExactPoint& p2
-        );
-
     protected:
-
         /**
          * \brief Computes the relative orientations of two halfedges
          * \param[in] h1 , h2 the two halfedges
@@ -507,43 +556,40 @@ namespace GEO {
          */
         Sign h_refNorient(index_t h2) const;
 
-    public:
-        void test(index_t h1, index_t h2) {
-            (*this)(h1,h2);
-            Sign o_ref1 = h_orient(h_ref_, h1);
-            Sign o_ref2 = h_orient(h_ref_, h2);
-            Sign oN_ref1 = h_refNorient(h1);
-            Sign oN_ref2 = h_refNorient(h2);
-            Sign o_12 = h_orient(h1,h2);
-            std::cerr
-                << " o_ref1=" << int(o_ref1) << " o_ref2=" << int(o_ref2)
-                << " oN_ref1=" << int(oN_ref1) << " oN_ref2=" << int(oN_ref2)
-                << " o_12=" << int(o_12)
-                << std::endl;
-        }
+	/**
+	 * \brief Computes the normal to a facet with exact coordinates
+	 * \param[in] h an halfedge incident to the facet
+	 * \return the normal to the facet with exact coordinates
+	 */
+	exact::vec3 normal(index_t h) const;
 
+	/**
+	 * \brief This function is called whenever radial sort encounters
+	 *  a configuration not supposed to happen. It positions the generate_
+	 *  flag for this RadialSort. It can happen when using the
+	 *  expansion-based open-source kernel, that can encounter
+	 *  overflows or underflows. In this case, one may need the geogram+
+	 *  arithmetic kernel (marketed by the TESSAEL company).
+	 */
+	void report_problem(const char* message) const;
 
     private:
-        const MeshSurfaceIntersection& mesh_;
-        index_t h_ref_; // ---reference halfedge
-        exact::vec3 U_ref_;   // -.
-        exact::vec3 V_ref_;   //  +-reference basis
-        exact::vec3 N_ref_;   // -'
-        vec3I U_ref_I_; // -.
-        vec3I V_ref_I_; //  +-reference basis (interval arithmetics)
-        vec3I N_ref_I_; // _'
-        mutable vector< std::pair<index_t, Sign> > refNorient_cache_;
+        const MeshSurfaceIntersection& I_;
+	const Mesh& mesh_;
+        index_t h_ref_;     // reference halfedge
+        exact::vec3 N_ref_; // normal to reference triangle (exact)
         mutable bool degenerate_;
     };
-
 
     protected:
     Process::spinlock lock_;
     Mesh& mesh_;
     Mesh mesh_copy_;
     Attribute<const ExactPoint*> vertex_to_exact_point_;
+    Attribute<index_t> original_facet_id_; // mesh_ facet to mesh_copy_ facet
+    Attribute<bool> f_is_flipped_;   // mesh_ facet is flipped wrt mesh_copy_
 
-#ifdef GEOGRAM_USE_EXACT_NT
+#if defined(GEOGRAM_USE_EXACT_NT) && defined(GEOGRAM_EXACT_NT_IS_MPF_NT)
     // Exact points are canonicalized
     // (by Numeric::optimize_number_representation(vec3HEx)) so
     // we can use this comparator that makes the global vertex map
@@ -973,11 +1019,10 @@ namespace GEO {
             auto e = H_.begin() + std::ptrdiff_t(bndl_start_[bndl+1]);
             RS.init(*b);
             std::sort(
-                b, e,
-                [&](index_t h1, index_t h2)->bool {
-                    return RS(h1,h2);
-                }
-            );
+		b, e, [&RS](index_t h1, index_t h2) {
+		    return RS(h1,h2);
+		}
+	    );
             bool OK = !RS.degenerate();
             bndl_is_sorted_[bndl] = OK;
             return OK;
@@ -998,7 +1043,7 @@ namespace GEO {
             for(index_t i=0; i<halfedges.size(); ++i) {
                 set_halfedge(bndl, i, halfedges[i]);
             }
-            bndl_is_sorted_[bndl] = true;
+	    bndl_is_sorted_[bndl] = true;
         }
 
         /**
@@ -1020,7 +1065,7 @@ namespace GEO {
         );
 
         bool is_sorted(index_t bndl) const {
-            geo_assert(bndl < nb());
+            geo_debug_assert(bndl < nb());
             return bndl_is_sorted_[bndl];
         }
 
@@ -1032,7 +1077,7 @@ namespace GEO {
         vector<index_t> bndl_start_;
         vector<index_t> v_first_bndl_;
         vector<index_t> bndl_next_around_v_;
-        vector<bool> bndl_is_sorted_;
+        vector<char> bndl_is_sorted_; // not vector<bool>, multithread! (#308)
     } radial_bundles_;
 
     /***************************************************/
@@ -1041,7 +1086,7 @@ namespace GEO {
     public:
         /**
          * \brief RadialPolylines constructor
-         * \param[in] I a reference to the MeshSurfaceIntersectionx
+         * \param[in] I a reference to the MeshSurfaceIntersection
          */
         RadialPolylines(MeshSurfaceIntersection& I) : I_(I), mesh_(I.mesh_) {
         }
@@ -1125,10 +1170,11 @@ namespace GEO {
     /********************************************************************/
 
     enum MeshBooleanOperationFlags {
-	MESH_BOOL_OPS_DEFAULT     = 0,
-	MESH_BOOL_OPS_VERBOSE     = 1,
-	MESH_BOOL_OPS_ATTRIBS     = 2,
-	MESH_BOOL_OPS_NO_SIMPLIFY = 4
+	MESH_BOOL_OPS_DEFAULT            = 0,
+	MESH_BOOL_OPS_VERBOSE            = 1,
+	MESH_BOOL_OPS_ATTRIBS            = 2,
+	MESH_BOOL_OPS_NO_SIMPLIFY        = 4,
+	MESH_BOOL_OPS_NO_CHECK_NEIGHBORS = 8
     };
 
     /**
@@ -1143,9 +1189,11 @@ namespace GEO {
      *   - MESH_BOOL_OPS_ATTRIBS: interpolates attributes
      *      (implies MESH_BOOL_OPS_NO_SIMPLIFY)
      *   - MESH_BOOL_OPS_NO_SIMPLIFY: do not simplify coplanar facets
+     *   - MESH_BOOL_OPS_NO_CHECK_NEIGHBORS: do not check intersections between
+     *      triangles that share an edge or a vertex
      */
     void GEOGRAM_API mesh_boolean_operation(
-        Mesh& result, Mesh& A, Mesh& B, const std::string& operation,
+        Mesh& result, const Mesh& A, const Mesh& B, const std::string& operation,
         MeshBooleanOperationFlags flags = MESH_BOOL_OPS_DEFAULT
     );
 
@@ -1160,7 +1208,7 @@ namespace GEO {
      *   during computation
      */
     inline void mesh_boolean_operation(
-        Mesh& result, Mesh& A, Mesh& B, const std::string& operation,
+        Mesh& result, const Mesh& A, const Mesh& B, const std::string& operation,
         bool verbose
     ) {
 	mesh_boolean_operation(
@@ -1180,9 +1228,11 @@ namespace GEO {
      *   - MESH_BOOL_OPS_ATTRIBS: interpolates attributes
      *      (implies MESH_BOOL_OPS_NO_SIMPLIFY)
      *   - MESH_BOOL_OPS_NO_SIMPLIFY: do not simplify coplanar facets
+     *   - MESH_BOOL_OPS_NO_CHECK_NEIGHBORS: do not check intersections between
+     *      triangles that share an edge or a vertex
      */
     inline void mesh_union(
-        Mesh& result, Mesh& A, Mesh& B,
+        Mesh& result, const Mesh& A, const Mesh& B,
 	MeshBooleanOperationFlags flags=MESH_BOOL_OPS_DEFAULT
     ) {
         mesh_boolean_operation(result, A, B, "A+B", flags);
@@ -1198,7 +1248,7 @@ namespace GEO {
      *  information during computation
      */
     inline void mesh_union(
-        Mesh& result, Mesh& A, Mesh& B, bool verbose
+        Mesh& result, const Mesh& A, const Mesh& B, bool verbose
     ) {
         mesh_boolean_operation(result, A, B, "A+B", verbose);
     }
@@ -1215,9 +1265,11 @@ namespace GEO {
      *   - MESH_BOOL_OPS_ATTRIBS: interpolates attributes
      *      (implies MESH_BOOL_OPS_NO_SIMPLIFY)
      *   - MESH_BOOL_OPS_NO_SIMPLIFY: do not simplify coplanar facets
+     *   - MESH_BOOL_OPS_NO_CHECK_NEIGHBORS: do not check intersections between
+     *      triangles that share an edge or a vertex
      */
     inline void mesh_intersection(
-        Mesh& result, Mesh& A, Mesh& B,
+        Mesh& result, const Mesh& A, const Mesh& B,
 	MeshBooleanOperationFlags flags=MESH_BOOL_OPS_DEFAULT
     ) {
         mesh_boolean_operation(result, A, B, "A*B", flags);
@@ -1233,7 +1285,7 @@ namespace GEO {
      *  during computation
      */
     inline void mesh_intersection(
-        Mesh& result, Mesh& A, Mesh& B, bool verbose
+        Mesh& result, const Mesh& A, const Mesh& B, bool verbose
     ) {
         mesh_boolean_operation(result, A, B, "A*B", verbose);
     }
@@ -1249,9 +1301,11 @@ namespace GEO {
      *   - MESH_BOOL_OPS_ATTRIBS: interpolates attributes
      *      (implies MESH_BOOL_OPS_NO_SIMPLIFY)
      *   - MESH_BOOL_OPS_NO_SIMPLIFY: do not simplify coplanar facets
+     *   - MESH_BOOL_OPS_NO_CHECK_NEIGHBORS: do not check intersections between
+     *      triangles that share an edge or a vertex
      */
     inline void mesh_difference(
-        Mesh& result, Mesh& A, Mesh& B,
+        Mesh& result, const Mesh& A, const Mesh& B,
 	MeshBooleanOperationFlags flags=MESH_BOOL_OPS_DEFAULT
     ) {
         mesh_boolean_operation(result, A, B, "A-B", flags);
@@ -1267,7 +1321,7 @@ namespace GEO {
      *  during computation
      */
     inline void mesh_difference(
-        Mesh& result, Mesh& A, Mesh& B, bool verbose
+        Mesh& result, const Mesh& A, const Mesh& B, bool verbose
     ) {
         mesh_boolean_operation(result, A, B, "A-B", verbose);
     }

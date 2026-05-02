@@ -42,6 +42,7 @@
 #include <geogram/basic/command_line.h>
 #include <geogram/basic/command_line_args.h>
 #include <geogram/basic/stopwatch.h>
+#include <geogram/basic/file_system.h>
 #include <geogram/mesh/mesh.h>
 #include <geogram/mesh/mesh_io.h>
 #include <geogram/mesh/mesh_repair.h>
@@ -71,6 +72,9 @@ int main(int argc, char** argv) {
         );
         CmdLine::declare_arg(
             "verbose",true,"makes intersection algorithm more chatty"
+        );
+        CmdLine::declare_arg(
+            "fine_verbose",true,"makes intersection algorithm even more chatty"
         );
         CmdLine::declare_arg(
             "Delaunay",true,"use Delaunay triangulation to remesh intersections"
@@ -122,15 +126,22 @@ int main(int argc, char** argv) {
 
         Mesh A;
 
-        if(!mesh_load(filenames[0],A)) {
+	MeshIOFlags load_flags;
+	if(
+	    FileSystem::extension(output_filename) == "mesh" ||
+	    FileSystem::extension(output_filename) == "meshb"
+	) {
+	    load_flags.set_attributes(MESH_ALL_ATTRIBUTES);
+	}
+        if(!mesh_load(filenames[0],A, load_flags)) {
             return 1;
         }
 
         {
             Logger::div("Intersect");
-            Stopwatch Wintersect("Intersect");
             MeshSurfaceIntersection I(A);
             I.set_verbose(CmdLine::get_arg_bool("verbose"));
+            I.set_fine_verbose(CmdLine::get_arg_bool("fine_verbose"));
             I.set_delaunay(CmdLine::get_arg_bool("Delaunay"));
             I.set_detect_intersecting_neighbors(
                 CmdLine::get_arg_bool("detect_intersecting_neighbors")
@@ -189,7 +200,14 @@ int main(int argc, char** argv) {
         Logger::div("Data I/O");
 
         if(output_filename != "none") {
-            mesh_save(A, output_filename);
+	    MeshIOFlags save_flags;
+	    if(
+		FileSystem::extension(output_filename) == "mesh" ||
+		FileSystem::extension(output_filename) == "meshb"
+	    ) {
+		save_flags.set_attributes(MESH_ALL_ATTRIBUTES);
+	    }
+            mesh_save(A, output_filename, save_flags);
         }
 
 

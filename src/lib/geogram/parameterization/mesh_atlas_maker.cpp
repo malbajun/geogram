@@ -75,7 +75,7 @@ namespace {
             for(index_t f : M.facets) {
                 for(index_t c: M.facets.corners(f)) {
                     index_t v = M.facet_corners.vertex(c);
-                    LSN.add_point(vec3(M.vertices.point_ptr(v)));
+                    LSN.add_point(M.vertices.point(v));
                 }
             }
             LSN.end();
@@ -95,8 +95,7 @@ namespace {
         }
         geo_assert(tex_coord.dimension() == 2);
         for(index_t v: M.vertices) {
-            vec3 p(M.vertices.point_ptr(v));
-            p -= center;
+            vec3 p = M.vertices.point(v) - center;
             double pu = dot(p,U);
             double pv = dot(p,V);
             tex_coord[2*v]   = pu;
@@ -123,7 +122,7 @@ namespace {
         for(index_t f: chart.facets) {
             for(index_t c: chart.facets.corners(f)) {
                 if(
-                    chart.facet_corners.adjacent_facet(c) == index_t(-1) &&
+                    chart.facet_corners.adjacent_facet(c) == NO_INDEX &&
                     !visited[c]
                 ) {
                     ++nb_borders;
@@ -132,10 +131,10 @@ namespace {
                     do {
                         visited[H.corner] = true;
                         index_t v = chart.facet_corners.vertex(H.corner);
-                        P.push_back(vec3(chart.vertices.point_ptr(v)));
+                        P.push_back(chart.vertices.point(v));
                         MH.move_to_next_around_border(H);
                     } while(!visited[H.corner]);
-                    vec3 G(0.0,0.0,0.0);
+                    vec3 G{0.0,0.0,0.0};
                     for(vec3 p : P) {
                         G += p;
                     }
@@ -152,21 +151,11 @@ namespace {
         }
         for(index_t f: chart.facets) {
             geo_assert(chart.facets.nb_vertices(f) == 3);
-            index_t v1 = chart.facets.vertex(f,0);
-            index_t v2 = chart.facets.vertex(f,1);
-            index_t v3 = chart.facets.vertex(f,2);
-            volume += Geom::tetra_signed_volume(
-                origin,
-                vec3(chart.vertices.point_ptr(v1)),
-                vec3(chart.vertices.point_ptr(v2)),
-                vec3(chart.vertices.point_ptr(v3))
-            );
-
-            surface_area += Geom::triangle_area(
-                vec3(chart.vertices.point_ptr(v1)),
-                vec3(chart.vertices.point_ptr(v2)),
-                vec3(chart.vertices.point_ptr(v3))
-            );
+	    vec3 p1 = chart.facets.point(f,0);
+	    vec3 p2 = chart.facets.point(f,1);
+	    vec3 p3 = chart.facets.point(f,2);
+	    volume += dot(p1,cross(p2,p3)) / 6.0;
+            surface_area += Geom::triangle_area(p1,p2,p3);
         }
 
         volume = ::fabs(volume);
@@ -406,13 +395,13 @@ namespace {
                 if(initial_chart.is_bound()) {
                     initial_chart[f] = chart[f];
                 }
-                chart[f] = index_t(-1);
+                chart[f] = NO_INDEX;
             }
 
             index_t cur_chart = 0;
             for(index_t f: mesh_.facets) {
                 std::stack<index_t> S;
-                if(chart[f] == index_t(-1)) {
+                if(chart[f] == NO_INDEX) {
                     chart[f] = cur_chart;
                     S.push(f);
                     do {
@@ -502,7 +491,7 @@ namespace {
                         for(index_t e=0; e<M.facets.nb_vertices(f); ++e) {
                             index_t g = M.facets.adjacent(f,e);
                             if(
-                                g != index_t(-1) && !f_is_visited[g] &&
+                                g != NO_INDEX && !f_is_visited[g] &&
                                 chart[g] == chart[f0]
                             ) {
                                 facets.push_back(g);
@@ -516,7 +505,7 @@ namespace {
                     for(index_t f: facets) {
                         for(index_t c: M.facets.corners(f)) {
                             index_t v = M.facet_corners.vertex(c);
-                            vertex_id[v] = index_t(-1);
+                            vertex_id[v] = NO_INDEX;
                         }
                     }
 
@@ -525,9 +514,9 @@ namespace {
                     for(index_t f: facets) {
                         for(index_t c: M.facets.corners(f)) {
                             index_t v = M.facet_corners.vertex(c);
-                            if(vertex_id[v] == index_t(-1)) {
+                            if(vertex_id[v] == NO_INDEX) {
                                 C.vertices.create_vertex(
-                                    M.vertices.point_ptr(v)
+                                    M.vertices.point(v)
                                 );
                                 vertex_id[v] = nb_vertices; // M to C
                                 ++nb_vertices;
@@ -578,7 +567,7 @@ namespace {
         bool precheck_chart(const Mesh& chart) {
             bool has_borders = false;
             for(index_t c: chart.facet_corners) {
-                if(chart.facet_corners.adjacent_facet(c) == index_t(-1)) {
+                if(chart.facet_corners.adjacent_facet(c) == NO_INDEX) {
                     has_borders = true;
                     break;
                 }
@@ -699,9 +688,9 @@ namespace {
         index_t c11 = mesh.facets.corners_begin(f1)+e1;
         index_t c12 = mesh.facets.next_corner_around_facet(f1,c11);
         index_t f2  = mesh.facets.adjacent(f1,e1);
-        geo_assert(f2 != index_t(-1));
+        geo_assert(f2 != NO_INDEX);
         index_t e2  = mesh.facets.find_adjacent(f2,f1);
-        geo_assert(e2 != index_t(-1));
+        geo_assert(e2 != NO_INDEX);
         index_t c21 = mesh.facets.corners_begin(f2)+e2;
         index_t c22 = mesh.facets.next_corner_around_facet(f2,c21);
 
@@ -760,11 +749,11 @@ namespace GEO {
                                  << std::endl;
             return 0;
         }
-        chart.fill(index_t(-1));
+        chart.fill(NO_INDEX);
         std::stack<index_t> S;
         index_t current_chart = 0;
         for(index_t f : mesh.facets) {
-            if(chart[f] == index_t(-1)) {
+            if(chart[f] == NO_INDEX) {
                 chart[f] = current_chart;
                 S.push(f);
                 while(!S.empty()) {
@@ -773,8 +762,8 @@ namespace GEO {
                     for(index_t e=0; e<mesh.facets.nb_vertices(f1); ++e) {
                         index_t f2 = mesh.facets.adjacent(f1,e);
                         if(
-                            f2 != index_t(-1) &&
-                            chart[f2] == index_t(-1) &&
+                            f2 != NO_INDEX &&
+                            chart[f2] == NO_INDEX &&
                             is_same_chart(mesh,f1,e,tex_coord)
                         ) {
                             chart[f2] = current_chart;

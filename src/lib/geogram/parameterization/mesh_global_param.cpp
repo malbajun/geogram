@@ -74,8 +74,8 @@ namespace {
         if(v2 < v1) {
             std::swap(v1,v2);
         }
-        const vec3& p1 = Geom::mesh_vertex(*mesh, v1);
-        const vec3& p2 = Geom::mesh_vertex(*mesh, v2);
+        const vec3& p1 = mesh->vertices.point(v1);
+        const vec3& p2 = mesh->vertices.point(v2);
         vec3 E = normalize(p2-p1);
         vec3 N1 = normalize(Geom::mesh_facet_normal(*mesh,f1));
         vec3 N2 = normalize(Geom::mesh_facet_normal(*mesh,f2));
@@ -262,7 +262,7 @@ namespace GEO {
                     for(index_t c: mesh->facets.corners(f)) {
                         if(
                             mesh->facet_corners.adjacent_facet(c) !=
-                            index_t(-1)
+                            NO_INDEX
                         ) {
                             index_t v = mesh->facet_corners.vertex(c);
                             Rsum[v] += R_ff[c];
@@ -525,9 +525,7 @@ namespace GEO {
                 index_t v1 = mesh->facet_corners.vertex(c);
                 index_t c2 = mesh->facets.next_corner_around_facet(c/3,c);
                 index_t v2 = mesh->facet_corners.vertex(c2);
-                vec3 E =
-                    vec3(mesh->vertices.point_ptr(v2)) -
-                    vec3(mesh->vertices.point_ptr(v1));
+                vec3 E = mesh->vertices.point(v2) - mesh->vertices.point(v1);
                 vec3 Bf = normalize(B[f]);
                 vec3 Bfrot = cross(N,Bf);
 

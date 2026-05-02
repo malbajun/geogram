@@ -278,7 +278,7 @@ namespace GEO {
 #  error "Unsupported compiler"
 #endif
 
-#if defined(__x86_64) || defined(__ppc64__) || defined(__arm64__) || defined(__aarch64__) || (defined(__riscv) && __riscv_xlen == 64)
+#if defined(__x86_64) || defined(__ppc64__) || defined(__arm64__) || defined(__aarch64__) || (defined(__riscv) && __riscv_xlen == 64) || defined(__loongarch_lp64)
 #  define GEO_ARCH_64
 #else
 #  define GEO_ARCH_32
@@ -287,6 +287,8 @@ namespace GEO {
 // =============================== Emscripten defines  ======================
 
 #elif defined(__EMSCRIPTEN__)
+
+#include <emscripten.h>
 
 #define GEO_OS_UNIX
 #define GEO_OS_LINUX
@@ -359,6 +361,12 @@ namespace GEO {
 
 #ifndef GEO_NOEXCEPT
 #define GEO_NOEXCEPT throw()
+#endif
+
+#if defined(GOMGEN)
+#define GEO_NODISCARD
+#else
+#define GEO_NODISCARD [[nodiscard]]
 #endif
 
 #define FOR(I,UPPERBND) for(index_t I = 0; I<index_t(UPPERBND); ++I)

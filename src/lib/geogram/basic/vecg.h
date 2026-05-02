@@ -51,6 +51,10 @@
 #include <cfloat>
 #include <cmath>
 
+#ifndef GOMGEN
+#include <type_traits>
+#endif
+
 /**
  * \file geogram/basic/vecg.h
  * \brief Generic implementation of geometric vectors
@@ -70,7 +74,7 @@ namespace GEO {
     class vecng {
     public:
         /** \brief The dimension of the vector */
-        static const index_t dim = DIM;
+        static constexpr index_t dim = DIM;
 
         /** \brief This vector type */
         typedef vecng<DIM, T> vector_type;
@@ -324,23 +328,6 @@ namespace GEO {
             return result;
         }
 
-        /**
-         * \brief Multiplies a vector by a scalar
-         * \details Builds a vector by multipying this vector coordinates by
-         * value \p s. The type \p T2 of \p s must be convertible to the type
-         * \p T of this vector coordinates.
-         * \param[in] s a value of type \p T2
-         * \tparam T2 the type of value \p s
-         * \return the result vector (\p this * \p s)
-         */
-        template <class T2>
-        inline vector_type operator* (T2 s) const {
-            vector_type result(*this);
-            for(index_t i = 0; i < DIM; i++) {
-                result.data_[i] *= T(s);
-            }
-            return result;
-        }
 
         /**
          * \brief Divides a vector by a scalar
@@ -395,6 +382,7 @@ namespace GEO {
         return result;
     }
 
+#ifndef GOMGEN
     /**
      * \brief Multiplies a scalar by a vector
      * \details Builds a vector by multipying this vector coordinates by
@@ -406,8 +394,10 @@ namespace GEO {
      * \return the result vector (\p s * \p v)
      * \relates vecng
      */
-    template <class T2, index_t DIM, class T>
-    inline vecng<DIM, T> operator* (
+    template <
+	class T2, index_t DIM, class T,
+	typename = std::enable_if_t<is_scalar<T2>::value>
+    > inline vecng<DIM, T> operator* (
         T2 s, const vecng<DIM, T>& v
     ) {
         vecng<DIM, T> result;
@@ -416,6 +406,32 @@ namespace GEO {
         }
         return result;
     }
+
+
+        /**
+     * \brief Multiplies a scalar by a vector
+     * \details Builds a vector by multipying this vector coordinates by
+     * value \p s. The type \p T2 of \p s must be convertible to the type \p
+     * T of this vector coordinates.
+     * \param[in] v the vector to multiply
+     * \param[in] s a value of type \p T2
+     * \tparam T2 the type of value \p s
+     * \return the result vector (\p s * \p v)
+     * \relates vecng
+     */
+    template <
+	class T2, index_t DIM, class T,
+	typename = std::enable_if_t<is_scalar<T2>::value>
+    > inline vecng<DIM, T> operator* (
+        const vecng<DIM, T>& v, T2 s
+    ) {
+        vecng<DIM, T> result;
+        for(index_t i = 0; i < DIM; i++) {
+            result[i] = T(s) * v[i];
+        }
+        return result;
+    }
+#endif
 
     // Compatibility with GLSL
 
@@ -482,7 +498,7 @@ namespace GEO {
      * \return the normalized vector
      * \relates vecng
      */
-    template <index_t DIM, class T>
+    template <index_t DIM, class T> GEO_NODISCARD
     inline vecng<DIM, T> normalize(
         const vecng<DIM, T>& v
     ) {
@@ -520,7 +536,7 @@ namespace GEO {
     class vecng<2, T> {
     public:
         /** \copydoc vecng::dim */
-        static const index_t dim = 2;
+        static constexpr index_t dim = 2;
 
         /** \copydoc vecng::vector_type */
         typedef vecng<dim, T> vector_type;
@@ -536,12 +552,24 @@ namespace GEO {
 
         /**
          * \brief Constructs a vector from coordinates
-         * \param[in] x_in , y_in vector coordinates
+         * \param[in] x_in , y_in references to vector coordinates
          */
-        vecng(T x_in, T y_in) :
+        vecng(const T& x_in, const T& y_in) :
             x(x_in),
             y(y_in) {
         }
+
+        /**
+         * \brief Constructs a vector from coordinates
+         * \param[in] x_in , y_in vector coordinates as rvalue references
+         */
+        vecng(T&& x_in, T&& y_in) :
+            x(x_in),
+            y(y_in) {
+        }
+
+	vecng(const vecng<2,T>& rhs) = default;
+	vecng(vecng<2,T>&& rhs) = default;
 
         /** \copydoc vecng::vecng(const vecng<DIM, T2>&) */
         template <class T2>
@@ -566,6 +594,9 @@ namespace GEO {
                 ++i;
             }
         }
+
+	vecng<2,T>& operator=(const vecng<2,T>& rhs) = default;
+	vecng<2,T>& operator=(vecng<2,T>&& rhs) = default;
 
         /** \copydoc vecng::length2() const */
         inline T length2() const {
@@ -627,12 +658,6 @@ namespace GEO {
         /** \copydoc vecng::operator-(const vector_type&) const */
         inline vector_type operator- (const vector_type& v) const {
             return vector_type(x - v.x, y - v.y);
-        }
-
-        /** \copydoc vecng::operator*(T2) const */
-        template <class T2>
-        inline vector_type operator* (T2 s) const {
-            return vector_type(x * T(s), y * T(s));
         }
 
         /** \copydoc vecng::operator/(T2) const */
@@ -710,16 +735,33 @@ namespace GEO {
         return v1.x * v2.y - v1.y * v2.x;
     }
 
+#ifndef GOMGEN
     /**
      * \copydoc vecng::operator*(T2,const vecng<DIM,T>&)
      * \relates vecng
      */
-    template <class T2, class T>
-    inline vecng<2, T> operator* (
+    template <
+	class T2, class T,
+	typename = std::enable_if_t<is_scalar<T2>::value>
+    > inline vecng<2, T> operator* (
         T2 s, const vecng<2, T>& v
     ) {
         return vecng<2, T>(T(s) * v.x, T(s) * v.y);
     }
+
+    /**
+     * \copydoc vecng::operator*(const vecng<DIM,T>&, T2)
+     * \relates vecng
+     */
+    template <
+	class T2, class T,
+	typename = std::enable_if_t<is_scalar<T2>::value>
+    > inline vecng<2, T> operator* (
+        const vecng<2, T>& v, T2 s
+    ) {
+        return vecng<2, T>(T(s) * v.x, T(s) * v.y);
+    }
+#endif
 
     /************************************************************************/
 
@@ -731,7 +773,7 @@ namespace GEO {
     class vecng<3, T> {
     public:
         /** \copydoc vecng::dim */
-        static const index_t dim = 3;
+        static constexpr index_t dim = 3;
 
         /** \copydoc vecng::vector_type */
         typedef vecng<dim, T> vector_type;
@@ -748,13 +790,26 @@ namespace GEO {
 
         /**
          * \brief Constructs a vector from coordinates
-         * \param[in] x_in , y_in , z_in vector coordinates
+         * \param[in] x_in , y_in , z_in references to vector coordinates
          */
-        vecng(T x_in, T y_in, T z_in) :
+        vecng(const T& x_in, const T& y_in, const T& z_in) :
             x(x_in),
             y(y_in),
             z(z_in) {
         }
+
+        /**
+         * \brief Constructs a vector from coordinates
+         * \param[in] x_in , y_in , z_in vector coordinates as rvalues
+         */
+        vecng(T&& x_in, T&& y_in, T&& z_in) :
+            x(x_in),
+            y(y_in),
+            z(z_in) {
+        }
+
+	vecng(const vecng<3,T>& rhs) = default;
+	vecng(vecng<3,T>&& rhs) = default;
 
         /** \copydoc vecng::vecng(const vecng<DIM, T2>&) */
         template <class T2>
@@ -781,6 +836,36 @@ namespace GEO {
                 ++i;
             }
         }
+
+	vecng<3,T>& operator=(const vecng<3,T>& rhs) = default;
+	vecng<3,T>& operator=(vecng<3,T>&& rhs) = default;
+
+        /**
+         * \brief Explicit conversions (From section 5.4.1 Conversion and scalar constructors of GLSL 1.30.08 specification)
+         */
+        template<typename A, typename B>
+        vecng(const vecng<2, A>& _xy, B _z);
+        /**
+         * \brief Explicit conversions (From section 5.4.1 Conversion and scalar constructors of GLSL 1.30.08 specification)
+         */
+        template<typename A, typename B>
+        vecng(const vecng<2, A>& _xy, const vecng<1, B>& _z);
+        /**
+         * \brief Explicit conversions (From section 5.4.1 Conversion and scalar constructors of GLSL 1.30.08 specification)
+         */
+        template<typename A, typename B>
+        vecng(A _x, const vecng<2, B>& _yz);
+        /**
+         * \brief Explicit conversions (From section 5.4.1 Conversion and scalar constructors of GLSL 1.30.08 specification)
+         */
+        template<typename A, typename B>
+        vecng(const vecng<1, A>& _x, const vecng<2, B>& _yz);
+        /**
+         * \brief Explicit conversions (From section 5.4.1 Conversion and scalar constructors of GLSL 1.30.08 specification)
+         */
+        template<typename U>
+        explicit vecng(vecng<4, U> const& v);
+
 
         /** \copydoc vecng::length2() const */
         inline T length2() const {
@@ -847,12 +932,6 @@ namespace GEO {
         /** \copydoc vecng::operator-(const vector_type&) const */
         inline vector_type operator- (const vector_type& v) const {
             return vector_type(x - v.x, y - v.y, z - v.z);
-        }
-
-        /** \copydoc vecng::operator*(T2) const */
-        template <class T2>
-        inline vector_type operator* (T2 s) const {
-            return vector_type(x * T(s), y * T(s), z * T(s));
         }
 
         /** \copydoc vecng::operator/(T2) const */
@@ -937,16 +1016,34 @@ namespace GEO {
         );
     }
 
+#ifndef GOMGEN
     /**
      * \copydoc vecng::operator*(T2, const vecng<DIM,T>&)
      * \relates vecng
      */
-    template <class T2, class T>
-    inline vecng<3, T> operator* (
+    template <
+	class T2, class T,
+	typename = std::enable_if_t<is_scalar<T2>::value>
+    > inline vecng<3, T> operator* (
         T2 s, const vecng<3, T>& v
     ) {
         return vecng<3, T>(T(s) * v.x, T(s) * v.y, T(s) * v.z);
     }
+
+    /**
+     * \copydoc vecng::operator*(const vecng<DIM,T>&, T2)
+     * \relates vecng
+     */
+    template <
+	class T2, class T,
+	typename = std::enable_if_t<is_scalar<T2>::value>
+    > inline vecng<3, T> operator* (
+        const vecng<3, T>& v, T2 s
+    ) {
+        return vecng<3, T>(T(s) * v.x, T(s) * v.y, T(s) * v.z);
+    }
+
+#endif
 
     /************************************************************************/
 
@@ -958,7 +1055,7 @@ namespace GEO {
     class vecng<4, T> {
     public:
         /** \copydoc vecng::dim */
-        static const index_t dim = 4;
+        static constexpr index_t dim = 4;
 
         /** \copydoc vecng::vector_type */
         typedef vecng<dim, T> vector_type;
@@ -976,14 +1073,28 @@ namespace GEO {
 
         /**
          * \brief Constructs a vector from coordinates
-         * \param[in] x_in , y_in , z_in , w_in vector coordinates
+         * \param[in] x_in , y_in , z_in , w_in references to vector coordinates
          */
-        vecng(T x_in, T y_in, T z_in, T w_in) :
+        vecng(const T& x_in, const T& y_in, const T& z_in, const T& w_in) :
             x(x_in),
             y(y_in),
             z(z_in),
             w(w_in) {
         }
+
+        /**
+         * \brief Constructs a vector from coordinates
+         * \param[in] x_in , y_in , z_in , w_in vector coordinates as rvalues
+         */
+        vecng(T&& x_in, T&& y_in, T&& z_in, T&& w_in) :
+            x(x_in),
+            y(y_in),
+            z(z_in),
+            w(w_in) {
+        }
+
+	vecng(const vecng<4,T>& rhs) = default;
+	vecng(vecng<4,T>&& rhs) = default;
 
         /** \copydoc vecng::vecng(const vecng<DIM, T2>&) */
         template <class T2>
@@ -1012,6 +1123,105 @@ namespace GEO {
                 ++i;
             }
         }
+
+	vecng<4,T>& operator=(const vecng<4,T>& rhs) = default;
+	vecng<4,T>& operator=(vecng<4,T>&& rhs) = default;
+
+        // -- Conversion scalar constructors --
+
+        template<typename U>
+        explicit vecng(vecng<1, U> const& v);
+
+        template<typename X, typename Y, typename Z, typename W>
+        vecng(X _x, Y _y, Z _z, W _w);
+        template<typename X, typename Y, typename Z, typename W>
+        vecng(const vecng<1, X>& _x, Y _y, Z _z, W _w);
+        template<typename X, typename Y, typename Z, typename W>
+        vecng(X _x, const vecng<1, Y>& _y, Z _z, W _w);
+        template<typename X, typename Y, typename Z, typename W>
+        vecng(const vecng<1, X>& _x, const vecng<1, Y>& _y, Z _z, W _w);
+        template<typename X, typename Y, typename Z, typename W>
+        vecng(X _x, Y _y, const vecng<1, Z>& _z, W _w);
+        template<typename X, typename Y, typename Z, typename W>
+        vecng(const vecng<1, X>& _x, Y _y, const vecng<1, Z>& _z, W _w);
+        template<typename X, typename Y, typename Z, typename W>
+        vecng(X _x, const vecng<1, Y>& _y, const vecng<1, Z>& _z, W _w);
+        template<typename X, typename Y, typename Z, typename W>
+        vecng(
+	    const vecng<1, X>& _x, const vecng<1, Y>& _y,
+	    const vecng<1, Z>& _z, W _w
+	);
+        template<typename X, typename Y, typename Z, typename W>
+        vecng(const vecng<1, X>& _x, Y _y, Z _z, const vecng<1, W>& _w);
+        template<typename X, typename Y, typename Z, typename W>
+        vecng(X _x, const vecng<1, Y>& _y, Z _z, const vecng<1, W>& _w);
+        template<typename X, typename Y, typename Z, typename W>
+        vecng(
+	    const vecng<1, X>& _x, const vecng<1, Y>& _y, Z _z,
+	    const vecng<1, W>& _w
+	);
+        template<typename X, typename Y, typename Z, typename W>
+        vecng(X _x, Y _y, const vecng<1, Z>& _z, const vecng<1, W>& _w);
+        template<typename X, typename Y, typename Z, typename W>
+        vecng(
+	    const vecng<1, X>& _x, Y _y, const vecng<1, Z>& _z,
+	    const vecng<1, W>& _w
+	);
+        template<typename X, typename Y, typename Z, typename W>
+        vecng(
+	    X _x, const vecng<1, Y>& _y, const vecng<1, Z>& _z,
+	    const vecng<1, W>& _w
+	);
+        template<typename X, typename Y, typename Z, typename W>
+        vecng(
+	    const vecng<1, X>& _x, const vecng<1, Y>& _y,
+	    const vecng<1, Z>& _z, const vecng<1, W>& _w
+	);
+
+        // -- Conversion vector constructors --
+
+        template<typename A, typename B, typename C>
+        vecng(const vecng<2, A>& _xy, B _z, C _w);
+        template<typename A, typename B, typename C>
+        vecng(const vecng<2, A>& _xy, const vecng<1, B> & _z, C _w);
+        template<typename A, typename B, typename C>
+        vecng(const vecng<2, A>& _xy, B _z, const vecng<1, C>& _w);
+        template<typename A, typename B, typename C>
+        vecng(
+	    const vecng<2, A>& _xy,  const vecng<1, B>& _z,
+	    const vecng<1, C>& _w
+	);
+        template<typename A, typename B, typename C>
+        vecng(A _x, const vecng<2, B>& _yz, C _w);
+        template<typename A, typename B, typename C>
+        vecng(const vecng<1, A>& _x, const vecng<2, B>& _yz, C _w);
+        template<typename A, typename B, typename C>
+        vecng(A _x, const vecng<2, B>& _yz, const vecng<1, C>& _w);
+        template<typename A, typename B, typename C>
+        vecng(
+	    const vecng<1, A>& _x, const vecng<2, B>& _yz,
+	    const vecng<1, C>& _w
+	);
+        template<typename A, typename B, typename C>
+        vecng(A _x, B _y, const vecng<2, C>& _zw);
+        template<typename A, typename B, typename C>
+        vecng(const vecng<1, A>& _x, B _y, const vecng<2, C>& _zw);
+        template<typename A, typename B, typename C>
+        vecng(A _x, const vecng<1, B>& _y, const vecng<2, C>& _zw);
+        template<typename A, typename B, typename C>
+        vecng(
+	    const vecng<1, A>& _x, const vecng<1, B>& _y, const vecng<2, C>& _zw
+	);
+        template<typename A, typename B>
+        vecng(const vecng<3, A>& _xyz, B _w);
+        template<typename A, typename B>
+        vecng(const vecng<3, A>& _xyz, const vecng<1, B>& _w);
+        template<typename A, typename B>
+        vecng(A _x, const vecng<3, B>& _yzw);
+        template<typename A, typename B>
+        vecng(const vecng<1, A>& _x, const vecng<3, B>& _yzw);
+        template<typename A, typename B>
+        vecng(const vecng<2, A>& _xy, const vecng<2, B>& _zw);
 
         /** \copydoc vecng::length2() const */
         inline T length2() const {
@@ -1090,12 +1300,6 @@ namespace GEO {
             return vector_type(x - v.x, y - v.y, z - v.z, w - v.w);
         }
 
-        /** \copydoc vecng::operator*(T2) const */
-        template <class T2>
-        inline vector_type operator* (T2 s) const {
-            return vector_type(x * T(s), y * T(s), z * T(s), w * T(s));
-        }
-
         /** \copydoc vecng::operator/(T2) const */
         template <class T2>
         inline vector_type operator/ (T2 s) const {
@@ -1150,16 +1354,34 @@ namespace GEO {
         return v1.x * v2.x + v1.y * v2.y + v1.z * v2.z + v1.w * v2.w;
     }
 
+#ifndef GOMGEN
     /**
      * \copydoc vecng::operator*(T2, const vecng<DIM,T>&)
      * \relates vecng
      */
-    template <class T2, class T>
-    inline vecng<4, T> operator* (
+    template <
+	class T2, class T,
+	typename = std::enable_if_t<is_scalar<T2>::value>
+    > inline vecng<4, T> operator* (
         T2 s, const vecng<4, T>& v
     ) {
         return vecng<4, T>(T(s) * v.x, T(s) * v.y, T(s) * v.z, T(s) * v.w);
     }
+
+    /**
+     * \copydoc vecng::operator*(const vecng<DIM,T>&, T2)
+     * \relates vecng
+     */
+    template <
+	class T2, class T,
+	typename = std::enable_if_t<is_scalar<T2>::value>
+    > inline vecng<4, T> operator* (
+        const vecng<4, T>& v, T2 s
+    ) {
+        return vecng<4, T>(T(s) * v.x, T(s) * v.y, T(s) * v.z, T(s) * v.w);
+    }
+
+#endif
 
     /**
      * \brief Writes a vector to a stream
@@ -1185,8 +1407,8 @@ namespace GEO {
     /**
      * \brief Reads a vector from a stream
      * \details This reads \p DIM coordinates from the input stream \p in and
-     * stores them in vector \p v. Understands both "x y z" and
-     *  "[x, y, z]" formats.
+     * stores them in vector \p v. Understands both "x y z",
+     *  "[x, y, z]" and "{x, y, z}" formats.
      * \param[in] in the input stream
      * \param[out] v the vector to read
      * \return a reference to the input stream \p in
@@ -1200,7 +1422,7 @@ namespace GEO {
         while(isspace(in.peek())) {
             in.get(c);
         }
-        if(in.peek() == '[') {
+        if(in.peek() == '[' || in.peek() == '{') {
             in.get(c);
         }
         while(isspace(in.peek())) {
@@ -1218,11 +1440,370 @@ namespace GEO {
                 in.get(c);
             }
         }
-        if(in.peek() == ']') {
+        if(in.peek() == ']' || in.peek() == '}') {
             in.get(c);
         }
         return in;
     }
+
+    /************************************************************************/
+    // -- Conversion vector constructors --
+
+    template<typename T>
+    template<typename A, typename B>
+    vecng<3, T>::vecng(const vecng<2, A>& _xy, B _z)
+        : x{static_cast<T>(_xy.x)}
+        , y{static_cast<T>(_xy.y)}
+        , z{static_cast<T>(_z)}
+    {}
+
+    template<typename T>
+    template<typename A, typename B>
+    vecng<3, T>::vecng(const vecng<2, A>& _xy, const vecng<1, B>& _z)
+        : x(static_cast<T>(_xy.x))
+        , y(static_cast<T>(_xy.y))
+        , z(static_cast<T>(_z.x))
+    {}
+
+    template<typename T>
+    template<typename A, typename B>
+    vecng<3, T>::vecng(A _x, const vecng<2, B>& _yz)
+        : x(static_cast<T>(_x))
+        , y(static_cast<T>(_yz.x))
+        , z(static_cast<T>(_yz.y))
+    {}
+
+    template<typename T>
+    template<typename A, typename B>
+    vecng<3, T>::vecng(const vecng<1, A>& _x, const vecng<2, B>& _yz)
+        : x(static_cast<T>(_x.x))
+        , y(static_cast<T>(_yz.x))
+        , z(static_cast<T>(_yz.y))
+    {}
+
+    template<typename T>
+    template<typename U>
+    vecng<3, T>::vecng(const vecng<4, U>& v)
+        : x(static_cast<T>(v.x))
+        , y(static_cast<T>(v.y))
+        , z(static_cast<T>(v.z))
+    {}
+
+    /**/
+
+    template<typename T>
+    template<typename U>
+    vecng<4, T>::vecng(const vecng<1, U>& v)
+        : x(static_cast<T>(v.x))
+        , y(static_cast<T>(v.x))
+        , z(static_cast<T>(v.x))
+        , w(static_cast<T>(v.x))
+    {}
+
+    template<typename T>
+    template<typename X, typename Y, typename Z, typename W>
+    vecng<4, T>::vecng(X _x, Y _y, Z _z, W _w)
+        : x(static_cast<T>(_x))
+        , y(static_cast<T>(_y))
+        , z(static_cast<T>(_z))
+        , w(static_cast<T>(_w))
+    {}
+
+    template<typename T>
+    template<typename X, typename Y, typename Z, typename W>
+    vecng<4, T>::vecng(const vecng<1, X>& _x, Y _y, Z _z, W _w)
+        : x(static_cast<T>(_x.x))
+        , y(static_cast<T>(_y))
+        , z(static_cast<T>(_z))
+        , w(static_cast<T>(_w))
+    {}
+
+    template<typename T>
+    template<typename X, typename Y, typename Z, typename W>
+    vecng<4, T>::vecng(X _x, const vecng<1, Y>& _y, Z _z, W _w)
+        : x(static_cast<T>(_x))
+        , y(static_cast<T>(_y.x))
+        , z(static_cast<T>(_z))
+        , w(static_cast<T>(_w))
+    {}
+
+    template<typename T>
+    template<typename X, typename Y, typename Z, typename W>
+    vecng<4, T>::vecng(const vecng<1, X>& _x, const vecng<1, Y>& _y, Z _z, W _w)
+        : x(static_cast<T>(_x.x))
+        , y(static_cast<T>(_y.x))
+        , z(static_cast<T>(_z))
+        , w(static_cast<T>(_w))
+    {}
+
+    template<typename T>
+    template<typename X, typename Y, typename Z, typename W>
+    vecng<4, T>::vecng(X _x, Y _y, const vecng<1, Z>& _z, W _w)
+        : x(static_cast<T>(_x))
+        , y(static_cast<T>(_y))
+        , z(static_cast<T>(_z.x))
+        , w(static_cast<T>(_w))
+    {}
+
+    template<typename T>
+    template<typename X, typename Y, typename Z, typename W>
+    vecng<4, T>::vecng(const vecng<1, X>& _x, Y _y, const vecng<1, Z>& _z, W _w)
+        : x(static_cast<T>(_x.x))
+        , y(static_cast<T>(_y))
+        , z(static_cast<T>(_z.x))
+        , w(static_cast<T>(_w))
+    {}
+
+    template<typename T>
+    template<typename X, typename Y, typename Z, typename W>
+    vecng<4, T>::vecng(X _x, const vecng<1, Y>& _y, const vecng<1, Z>& _z, W _w)
+        : x(static_cast<T>(_x))
+        , y(static_cast<T>(_y.x))
+        , z(static_cast<T>(_z.x))
+        , w(static_cast<T>(_w))
+    {}
+
+    template<typename T>
+    template<typename X, typename Y, typename Z, typename W>
+    vecng<4, T>::vecng(
+	const vecng<1, X>& _x, const vecng<1, Y>& _y,
+	const vecng<1, Z>& _z, W _w
+    )   : x(static_cast<T>(_x.x))
+        , y(static_cast<T>(_y.x))
+        , z(static_cast<T>(_z.x))
+        , w(static_cast<T>(_w))
+    {}
+
+    template<typename T>
+    template<typename X, typename Y, typename Z, typename W>
+    vecng<4, T>::vecng(
+	const vecng<1, X>& _x, Y _y, Z _z, const vecng<1, W>& _w
+    )   : x(static_cast<T>(_x.x))
+        , y(static_cast<T>(_y))
+        , z(static_cast<T>(_z))
+        , w(static_cast<T>(_w.x))
+    {}
+
+    template<typename T>
+    template<typename X, typename Y, typename Z, typename W>
+    vecng<4, T>::vecng(
+	X _x, const vecng<1, Y>& _y, Z _z, const vecng<1, W>& _w
+    )   : x(static_cast<T>(_x))
+        , y(static_cast<T>(_y.x))
+        , z(static_cast<T>(_z))
+        , w(static_cast<T>(_w.x))
+    {}
+
+    template<typename T>
+    template<typename X, typename Y, typename Z, typename W>
+    vecng<4, T>::vecng(
+	const vecng<1, X>& _x, const vecng<1, Y>& _y, Z _z,
+	const vecng<1, W>& _w
+    )   : x(static_cast<T>(_x.x))
+        , y(static_cast<T>(_y.x))
+        , z(static_cast<T>(_z))
+        , w(static_cast<T>(_w.x))
+    {}
+
+    template<typename T>
+    template<typename X, typename Y, typename Z, typename W>
+    vecng<4, T>::vecng(X _x, Y _y, const vecng<1, Z>& _z, const vecng<1, W>& _w)
+        : x(static_cast<T>(_x))
+        , y(static_cast<T>(_y))
+        , z(static_cast<T>(_z.x))
+        , w(static_cast<T>(_w.x))
+    {}
+
+    template<typename T>
+    template<typename X, typename Y, typename Z, typename W>
+    vecng<4, T>::vecng(
+	const vecng<1, X>& _x, Y _y, const vecng<1, Z>& _z,
+	const vecng<1, W>& _w
+    )   : x(static_cast<T>(_x.x))
+        , y(static_cast<T>(_y))
+        , z(static_cast<T>(_z.x))
+        , w(static_cast<T>(_w.x))
+    {}
+
+    template<typename T>
+    template<typename X, typename Y, typename Z, typename W>
+    vecng<4, T>::vecng(
+	X _x, const vecng<1, Y>& _y, const vecng<1, Z>& _z,
+	const vecng<1, W>& _w
+    )   : x(static_cast<T>(_x))
+        , y(static_cast<T>(_y.x))
+        , z(static_cast<T>(_z.x))
+        , w(static_cast<T>(_w.x))
+    {}
+
+    template<typename T>
+    template<typename X, typename Y, typename Z, typename W>
+    vecng<4, T>::vecng(
+	const vecng<1, X>& _x, const vecng<1, Y>& _y,
+	const vecng<1, Z>& _z, const vecng<1, W>& _w
+    )   : x(static_cast<T>(_x.x))
+        , y(static_cast<T>(_y.x))
+        , z(static_cast<T>(_z.x))
+        , w(static_cast<T>(_w.x))
+    {}
+
+    // -- Conversion vector constructors --
+
+    template<typename T>
+    template<typename A, typename B, typename C>
+    vecng<4, T>::vecng(const vecng<2, A>& _xy, B _z, C _w)
+        : x(static_cast<T>(_xy.x))
+        , y(static_cast<T>(_xy.y))
+        , z(static_cast<T>(_z))
+        , w(static_cast<T>(_w))
+    {}
+
+    template<typename T>
+    template<typename A, typename B, typename C>
+    vecng<4, T>::vecng(const vecng<2, A>& _xy, const vecng<1, B>& _z, C _w)
+        : x(static_cast<T>(_xy.x))
+        , y(static_cast<T>(_xy.y))
+        , z(static_cast<T>(_z.x))
+        , w(static_cast<T>(_w))
+    {}
+
+    template<typename T>
+    template<typename A, typename B, typename C>
+    vecng<4, T>::vecng(const vecng<2, A>& _xy, B _z, const vecng<1, C>& _w)
+        : x(static_cast<T>(_xy.x))
+        , y(static_cast<T>(_xy.y))
+        , z(static_cast<T>(_z))
+        , w(static_cast<T>(_w.x))
+    {}
+
+    template<typename T>
+    template<typename A, typename B, typename C>
+    vecng<4, T>::vecng(
+	const vecng<2, A>& _xy, const vecng<1, B>& _z, const vecng<1, C>& _w
+    )   : x(static_cast<T>(_xy.x))
+        , y(static_cast<T>(_xy.y))
+        , z(static_cast<T>(_z.x))
+        , w(static_cast<T>(_w.x))
+    {}
+
+    template<typename T>
+    template<typename A, typename B, typename C>
+    vecng<4, T>::vecng(A _x, const vecng<2, B>& _yz, C _w)
+        : x(static_cast<T>(_x))
+        , y(static_cast<T>(_yz.x))
+        , z(static_cast<T>(_yz.y))
+        , w(static_cast<T>(_w))
+    {}
+
+    template<typename T>
+    template<typename A, typename B, typename C>
+    vecng<4, T>::vecng(const vecng<1, A>& _x,  const vecng<2, B>& _yz, C _w)
+        : x(static_cast<T>(_x.x))
+        , y(static_cast<T>(_yz.x))
+        , z(static_cast<T>(_yz.y))
+        , w(static_cast<T>(_w))
+    {}
+
+    template<typename T>
+    template<typename A, typename B, typename C>
+    vecng<4, T>::vecng(A _x, const vecng<2, B>& _yz, const vecng<1, C>& _w)
+        : x(static_cast<T>(_x))
+        , y(static_cast<T>(_yz.x))
+        , z(static_cast<T>(_yz.y))
+        , w(static_cast<T>(_w.x))
+    {}
+
+    template<typename T>
+    template<typename A, typename B, typename C>
+    vecng<4, T>::vecng(
+	const vecng<1, A>& _x, const vecng<2, B>& _yz, const vecng<1, C>& _w
+    )   : x(static_cast<T>(_x.x))
+        , y(static_cast<T>(_yz.x))
+        , z(static_cast<T>(_yz.y))
+        , w(static_cast<T>(_w.x))
+    {}
+
+    template<typename T>
+    template<typename A, typename B, typename C>
+    vecng<4, T>::vecng(A _x, B _y, const vecng<2, C>& _zw)
+        : x(static_cast<T>(_x))
+        , y(static_cast<T>(_y))
+        , z(static_cast<T>(_zw.x))
+        , w(static_cast<T>(_zw.y))
+    {}
+
+    template<typename T>
+    template<typename A, typename B, typename C>
+    vecng<4, T>::vecng(const vecng<1, A>& _x, B _y, const vecng<2, C>& _zw)
+        : x(static_cast<T>(_x.x))
+        , y(static_cast<T>(_y))
+        , z(static_cast<T>(_zw.x))
+        , w(static_cast<T>(_zw.y))
+    {}
+
+    template<typename T>
+    template<typename A, typename B, typename C>
+    vecng<4, T>::vecng(A _x, const vecng<1, B>& _y, const vecng<2, C>& _zw)
+        : x(static_cast<T>(_x))
+        , y(static_cast<T>(_y.x))
+        , z(static_cast<T>(_zw.x))
+        , w(static_cast<T>(_zw.y))
+    {}
+
+    template<typename T>
+    template<typename A, typename B, typename C>
+    vecng<4, T>::vecng(
+	const vecng<1, A>& _x, const vecng<1, B>& _y, const vecng<2, C>& _zw
+    ) : x(static_cast<T>(_x.x))
+      , y(static_cast<T>(_y.x))
+      , z(static_cast<T>(_zw.x))
+      , w(static_cast<T>(_zw.y))
+    {}
+
+    template<typename T>
+    template<typename A, typename B>
+    vecng<4, T>::vecng(const vecng<3, A>& _xyz, B _w)
+        : x(static_cast<T>(_xyz.x))
+        , y(static_cast<T>(_xyz.y))
+        , z(static_cast<T>(_xyz.z))
+        , w(static_cast<T>(_w))
+    {}
+
+    template<typename T>
+    template<typename A, typename B>
+    vecng<4, T>::vecng(const vecng<3, A>& _xyz, const vecng<1, B>& _w)
+        : x(static_cast<T>(_xyz.x))
+        , y(static_cast<T>(_xyz.y))
+        , z(static_cast<T>(_xyz.z))
+        , w(static_cast<T>(_w.x))
+    {}
+
+    template<typename T>
+    template<typename A, typename B>
+    vecng<4, T>::vecng(A _x, const vecng<3, B>& _yzw)
+        : x(static_cast<T>(_x))
+        , y(static_cast<T>(_yzw.x))
+        , z(static_cast<T>(_yzw.y))
+        , w(static_cast<T>(_yzw.z))
+    {}
+
+    template<typename T>
+    template<typename A, typename B>
+    vecng<4, T>::vecng(const vecng<1, A>& _x, const vecng<3, B>& _yzw)
+        : x(static_cast<T>(_x.x))
+        , y(static_cast<T>(_yzw.x))
+        , z(static_cast<T>(_yzw.y))
+        , w(static_cast<T>(_yzw.z))
+    {}
+
+    template<typename T>
+    template<typename A, typename B>
+    vecng<4, T>::vecng(const vecng<2, A>& _xy, const vecng<2, B>& _zw)
+        : x(static_cast<T>(_xy.x))
+        , y(static_cast<T>(_xy.y))
+        , z(static_cast<T>(_zw.x))
+        , w(static_cast<T>(_zw.y))
+    {}
 
     /************************************************************************/
 
@@ -1245,7 +1826,6 @@ namespace GEO {
     }
 
     /************************************************************************/
-
 }
 
 #endif

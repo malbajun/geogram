@@ -102,6 +102,36 @@ namespace GEO {
     }
 
     /**
+     * \brief Computes the sum of two doubles into a length 2 expansion.
+     * \details By Jonathan Shewchuk.
+     * \param[in] a first argument
+     * \param[in] b second argument
+     * \param[out] x high-magnitude component of the result
+     * \param[out] y low-magnitude component of the result
+     * \pre |\p a| > |\p b|
+     */
+    inline void fast_two_sum(double a, double b, double& x, double& y) {
+        x = a + b;
+        double bvirt = x - a;
+        y = b - bvirt;
+    }
+
+    /**
+     * \brief Computes the difference of two doubles into a length 2 expansion.
+     * \details By Jonathan Shewchuk.
+     * \param[in] a first argument
+     * \param[in] b second argument
+     * \param[out] x high-magnitude component of the result
+     * \param[out] y low-magnitude component of the result
+     * \pre | \p a| > | \p b |
+     */
+    inline void fast_two_diff(double a, double b, double& x, double& y) {
+        x = a - b;
+        double bvirt = a - x;
+        y = bvirt - b;
+    }
+
+    /**
      * \brief Splits a number into two components, ready for
      * computing a product.
      * \details By Jonathan Shewchuk.
@@ -348,7 +378,10 @@ namespace GEO {
      * \param[in] capa capacity (i.e. maximum length) of the expansion.
      * \return a pointer to the newly allocated expansion
      */
-    static expansion* new_expansion_on_heap(index_t capa);
+    static inline expansion* new_expansion_on_heap(index_t capa) {
+	void* addr = malloc(bytes(capa));
+	return new(addr)expansion(capa);
+    }
 
     /**
      * \brief Deallocates an expansion on the heap.
@@ -356,7 +389,9 @@ namespace GEO {
      * \pre \p e should have been previously allocated
      *  by new_expansion_on_heap()
      */
-    static void delete_expansion_on_heap(expansion* e);
+    static inline void delete_expansion_on_heap(expansion* e) {
+	free(e);
+    }
 
     // ========================== Initialization from doubles
 

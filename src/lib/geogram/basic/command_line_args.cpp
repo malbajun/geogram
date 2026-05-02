@@ -375,6 +375,10 @@ namespace {
             "nl:CUDA", false,
             "Use NVidia CUDA (if available in the system)"
         );
+        declare_arg(
+            "nl:CUDA:matrix_format", "fp64",
+            "one of fp32, fp64, fp32_precond"
+        );
     }
 
     /**
@@ -700,6 +704,14 @@ namespace {
         );
         declare_arg("gfx:geometry", "1024x1024", "resolution");
         declare_arg("gfx:keypress", "", "initial key sequence sent to viewer");
+	declare_arg(
+	    "gfx:adapter", "default",
+	    "one of default, intel, nvidia (for optimus-prime systems)"
+	);
+	declare_arg(
+	    "gfx:hidden", false,
+	    "if set, window is hidden (useful for offscreen rendering)"
+	);
     }
 
     /**
@@ -724,9 +736,13 @@ namespace {
         declare_arg("gui:font_size", 18, "font size");
         declare_arg("gui:expert", false, "expert mode for developpers");
 #ifdef GEO_OS_ANDROID
-        declare_arg("gui:phone_screen", true, "running on a phone (or testing)");
+        declare_arg(
+	    "gui:phone_screen", true, "running on a phone (or testing)"
+	);
 #else
-        declare_arg("gui:phone_screen", false, "running on a phone (or testing)");
+        declare_arg(
+	    "gui:phone_screen", false, "running on a phone (or testing)"
+	);
 #endif
     }
 

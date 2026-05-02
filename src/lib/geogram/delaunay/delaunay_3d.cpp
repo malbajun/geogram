@@ -138,9 +138,7 @@ namespace GEO {
     Delaunay3d::~Delaunay3d() {
     }
 
-    void Delaunay3d::set_vertices(
-        index_t nb_vertices, const double* vertices
-    ) {
+    void Delaunay3d::set_vertices(index_t nb_vertices, const double* vertices) {
         Stopwatch* W = nullptr;
         if(benchmark_mode_) {
             W = new Stopwatch("DelInternal");
@@ -256,27 +254,27 @@ namespace GEO {
                         Memory::copy(
                             &cell_to_v_store_[nb_tets * 4],
                             &cell_to_v_store_[t * 4],
-                            4 * sizeof(signed_index_t)
+                            4 * sizeof(index_t)
                         );
                         Memory::copy(
                             &cell_to_cell_store_[nb_tets * 4],
                             &cell_to_cell_store_[t * 4],
-                            4 * sizeof(signed_index_t)
+                            4 * sizeof(index_t)
                         );
                     }
                     old2new[t] = nb_tets;
                     ++nb_tets;
                 } else {
-                    old2new[t] = index_t(-1);
+                    old2new[t] = NO_INDEX;
                     ++nb_tets_to_delete;
                 }
             }
             cell_to_v_store_.resize(4 * nb_tets);
             cell_to_cell_store_.resize(4 * nb_tets);
             for(index_t i = 0; i < 4 * nb_tets; ++i) {
-                signed_index_t t = cell_to_cell_store_[i];
-                geo_debug_assert(t >= 0);
-                t = signed_index_t(old2new[t]);
+                index_t t = cell_to_cell_store_[i];
+                geo_debug_assert(t != NO_INDEX);
+                t = old2new[t];
                 // Note: t can be equal to -1 when a real tet is
                 // adjacent to a virtual one (and this is how the
                 // rest of Vorpaline expects to see tets on the
@@ -325,10 +323,10 @@ namespace GEO {
                 --infinite_ptr;
             }
             for(index_t i = 0; i < 4 * nb_tets; ++i) {
-                signed_index_t t = cell_to_cell_store_[i];
-                geo_debug_assert(t >= 0);
-                t = signed_index_t(old2new[t]);
-                geo_debug_assert(t >= 0);
+                index_t t = cell_to_cell_store_[i];
+                geo_debug_assert(t != NO_INDEX);
+                t = old2new[t];
+                geo_debug_assert(t != NO_INDEX);
                 cell_to_cell_store_[i] = t;
             }
         }
@@ -376,16 +374,16 @@ namespace GEO {
 
         // Find the nearest vertex among t's vertices
         for(index_t lv = 0; lv < 4; ++lv) {
-            signed_index_t v = tet_vertex(t, lv);
+            index_t v = tet_vertex(t, lv);
             // If the tetrahedron is virtual, then the first vertex
             // is the vertex at infinity and is skipped.
-            if(v < 0) {
+            if(v == NO_INDEX) {
                 continue;
             }
-            double cur_sq_dist = Geom::distance2(p, vertex_ptr(index_t(v)), 3);
+            double cur_sq_dist = Geom::distance2(p, vertex_ptr(v), 3);
             if(cur_sq_dist < sq_dist) {
                 sq_dist = cur_sq_dist;
-                result = index_t(v);
+                result = v;
             }
         }
         return result;
@@ -411,7 +409,7 @@ namespace GEO {
         if(tet_is_virtual(hint)) {
             for(index_t lf = 0; lf < 4; ++lf) {
                 if(tet_vertex(hint, lf) == VERTEX_AT_INFINITY) {
-                    hint = index_t(tet_adjacent(hint, lf));
+                    hint = tet_adjacent(hint, lf);
                     geo_debug_assert(hint != NO_TETRAHEDRON);
                     break;
                 }
@@ -431,17 +429,15 @@ namespace GEO {
 
             for(index_t f = 0; f < 4; ++f) {
 
-                signed_index_t s_t_next = tet_adjacent(t,f);
+                index_t t_next = tet_adjacent(t,f);
 
                 //  If the opposite tet is -1, then it means that
                 // we are trying to locate() (e.g. called from
                 // nearest_vertex) within a tetrahedralization
                 // from which the infinite tets were removed.
-                if(s_t_next == -1) {
+                if(t_next == NO_INDEX) {
                     return NO_TETRAHEDRON;
                 }
-
-                index_t t_next = index_t(s_t_next);
 
                 //   If the candidate next tetrahedron is the
                 // one we came from, then we know already that
@@ -511,14 +507,14 @@ namespace GEO {
         // locate_inexact() loops forever !
         hint = locate_inexact(p, hint, 2500);
 
-        static Process::spinlock lock = GEOGRAM_SPINLOCK_INIT;
+        static Process::spinlock locate_lock = GEOGRAM_SPINLOCK_INIT;
 
         // We need to have this spinlock because
         // of random() that is not thread-safe
         // (TODO: implement a random() function with
         //  thread local storage)
         if(thread_safe) {
-            Process::acquire_spinlock(lock);
+            Process::acquire_spinlock(locate_lock);
         }
 
         // If no hint specified, find a tetrahedron randomly
@@ -535,7 +531,7 @@ namespace GEO {
         if(tet_is_virtual(hint)) {
             for(index_t lf = 0; lf < 4; ++lf) {
                 if(tet_vertex(hint, lf) == VERTEX_AT_INFINITY) {
-                    hint = index_t(tet_adjacent(hint, lf));
+                    hint = tet_adjacent(hint, lf);
                     geo_debug_assert(hint != NO_TETRAHEDRON);
                     break;
                 }
@@ -563,20 +559,18 @@ namespace GEO {
             for(index_t df = 0; df < 4; ++df) {
                 index_t f = (f0 + df) % 4;
 
-                signed_index_t s_t_next = tet_adjacent(t,f);
+                index_t t_next = tet_adjacent(t,f);
 
                 //  If the opposite tet is -1, then it means that
                 // we are trying to locate() (e.g. called from
                 // nearest_vertex) within a tetrahedralization
                 // from which the infinite tets were removed.
-                if(s_t_next == -1) {
+                if(t_next == NO_INDEX) {
                     if(thread_safe) {
-                        Process::release_spinlock(lock);
+                        Process::release_spinlock(locate_lock);
                     }
                     return NO_TETRAHEDRON;
                 }
-
-                index_t t_next = index_t(s_t_next);
 
                 //   If the candidate next tetrahedron is the
                 // one we came from, then we know already that
@@ -612,7 +606,7 @@ namespace GEO {
                 // done.
                 if(tet_is_virtual(t_next)) {
                     if(thread_safe) {
-                        Process::release_spinlock(lock);
+                        Process::release_spinlock(locate_lock);
                     }
                     for(index_t lf = 0; lf < 4; ++lf) {
                         orient[lf] = POSITIVE;
@@ -634,7 +628,7 @@ namespace GEO {
         // face orientations (i.e. the tet that contains p).
 
         if(thread_safe) {
-            Process::release_spinlock(lock);
+            Process::release_spinlock(locate_lock);
         }
         return t;
     }
@@ -698,13 +692,13 @@ namespace GEO {
         if(!weighted_ && nb_zero != 0) {
             for(index_t lf = 0; lf < 4; ++lf) {
                 if(orient[lf] == ZERO) {
-                    index_t t2 = index_t(tet_adjacent(t, lf));
+                    index_t t2 = tet_adjacent(t, lf);
                     add_tet_to_list(t2, first, last);
                 }
             }
             for(index_t lf = 0; lf < 4; ++lf) {
                 if(orient[lf] == ZERO) {
-                    index_t t2 = index_t(tet_adjacent(t, lf));
+                    index_t t2 = tet_adjacent(t, lf);
                     find_conflict_zone_iterative(
                         p,t2,t_bndry,f_bndry,first,last
                     );
@@ -731,7 +725,7 @@ namespace GEO {
             S_.pop();
 
             for(index_t lf = 0; lf < 4; ++lf) {
-                index_t t2 = index_t(tet_adjacent(t, lf));
+                index_t t2 = tet_adjacent(t, lf);
 
                 if(
                     tet_is_in_list(t2)  // known as conflict
@@ -779,7 +773,7 @@ namespace GEO {
     }
 
     index_t Delaunay3d::stellate_conflict_zone_iterative(
-        index_t v_in, index_t t1, index_t t1fbord, index_t t1fprev
+        index_t v, index_t t1, index_t t1fbord, index_t t1fprev
     ) {
         //   This function is de-recursified because some degenerate
         // inputs can cause stack overflow (system stack is limited to
@@ -790,8 +784,6 @@ namespace GEO {
         // that emulates system's stack for storing functions's
         // parameters and local variables in all the nested stack
         // frames.
-
-        signed_index_t v = signed_index_t(v_in);
 
         S2_.push(t1, t1fbord, t1fprev);
 
@@ -812,8 +804,8 @@ namespace GEO {
         S2_.get_parameters(t1, t1fbord, t1fprev);
 
         geo_debug_assert(tet_is_in_list(t1));
-        geo_debug_assert(tet_adjacent(t1,t1fbord)>=0);
-        geo_debug_assert(!tet_is_in_list(index_t(tet_adjacent(t1,t1fbord))));
+        geo_debug_assert(tet_adjacent(t1,t1fbord) != NO_INDEX);
+        geo_debug_assert(!tet_is_in_list(tet_adjacent(t1,t1fbord)));
 
         // Create new tetrahedron with same vertices as t_bndry
         new_t = new_tetrahedron(
@@ -828,7 +820,7 @@ namespace GEO {
 
         // Connect new_t with t1's neighbor accros t1fbord
         {
-            index_t tbord = index_t(tet_adjacent(t1,t1fbord));
+            index_t tbord = tet_adjacent(t1,t1fbord);
             set_tet_adjacent(new_t, t1fbord, tbord);
             set_tet_adjacent(tbord, find_tet_adjacent(tbord,t1), new_t);
         }
@@ -837,7 +829,7 @@ namespace GEO {
         // facets and connect them
         for(t1ft2=0; t1ft2<4; ++t1ft2) {
 
-            if(t1ft2 == t1fprev || tet_adjacent(new_t,t1ft2) != -1) {
+            if(t1ft2 == t1fprev || tet_adjacent(new_t,t1ft2) != NO_INDEX) {
                 continue;
             }
 
@@ -880,16 +872,16 @@ namespace GEO {
 
     index_t Delaunay3d::stellate_cavity(index_t v) {
 
-        index_t new_tet = index_t(-1);
+        index_t new_tet = NO_INDEX;
 
         for(index_t f=0; f<cavity_.nb_facets(); ++f) {
             index_t old_tet = cavity_.facet_tet(f);
             index_t lf = cavity_.facet_facet(f);
-            index_t t_neigh = index_t(tet_adjacent(old_tet, lf));
-            signed_index_t v1 = cavity_.facet_vertex(f,0);
-            signed_index_t v2 = cavity_.facet_vertex(f,1);
-            signed_index_t v3 = cavity_.facet_vertex(f,2);
-            new_tet = new_tetrahedron(signed_index_t(v), v1, v2, v3);
+            index_t t_neigh = tet_adjacent(old_tet, lf);
+            index_t v1 = cavity_.facet_vertex(f,0);
+            index_t v2 = cavity_.facet_vertex(f,1);
+            index_t v3 = cavity_.facet_vertex(f,2);
+            new_tet = new_tetrahedron(v, v1, v2, v3);
             set_tet_adjacent(new_tet, 0, t_neigh);
             set_tet_adjacent(
 		t_neigh, find_tet_adjacent(t_neigh,old_tet), new_tet
@@ -911,7 +903,7 @@ namespace GEO {
 
     index_t Delaunay3d::insert(index_t v, index_t hint) {
         index_t t_bndry = NO_TETRAHEDRON;
-        index_t f_bndry = index_t(-1);
+        index_t f_bndry = NO_INDEX;
         index_t first_conflict = NO_TETRAHEDRON;
         index_t last_conflict = NO_TETRAHEDRON;
 
@@ -930,7 +922,7 @@ namespace GEO {
             return NO_TETRAHEDRON;
         }
 
-        index_t new_tet = index_t(-1);
+        index_t new_tet = NO_INDEX;
         if(cavity_.OK()) {
             new_tet = stellate_cavity(v);
         } else {
@@ -1003,20 +995,15 @@ namespace GEO {
         }
 
         // Create the first tetrahedron
-        index_t t0 = new_tetrahedron(
-            signed_index_t(iv0),
-            signed_index_t(iv1),
-            signed_index_t(iv2),
-            signed_index_t(iv3)
-        );
+        index_t t0 = new_tetrahedron(iv0, iv1, iv2, iv3);
 
         // Create the first four virtual tetrahedra surrounding it
         index_t t[4];
         for(index_t f = 0; f < 4; ++f) {
             // In reverse order since it is an adjacent tetrahedron
-            signed_index_t v1 = tet_vertex(t0, tet_facet_vertex(f,2));
-            signed_index_t v2 = tet_vertex(t0, tet_facet_vertex(f,1));
-            signed_index_t v3 = tet_vertex(t0, tet_facet_vertex(f,0));
+            index_t v1 = tet_vertex(t0, tet_facet_vertex(f,2));
+            index_t v2 = tet_vertex(t0, tet_facet_vertex(f,1));
+            index_t v3 = tet_vertex(t0, tet_facet_vertex(f,0));
             t[f] = new_tetrahedron(VERTEX_AT_INFINITY, v1, v2, v3);
         }
 
@@ -1074,9 +1061,9 @@ namespace GEO {
     }
 
     void Delaunay3d::show_tet_adjacent(index_t t, index_t lf) const {
-        signed_index_t adj = tet_adjacent(t, lf);
-        if(adj != -1) {
-            std::cerr << (tet_is_in_list(index_t(adj)) ? '*' : ' ');
+        index_t adj = tet_adjacent(t, lf);
+        if(adj != NO_INDEX) {
+            std::cerr << (tet_is_in_list(adj) ? '*' : ' ');
         }
         std::cerr << adj;
         std::cerr << ' ';
@@ -1116,19 +1103,19 @@ namespace GEO {
   }
 */
                 for(index_t lf = 0; lf < 4; ++lf) {
-                    if(tet_adjacent(t, lf) == -1) {
+                    if(tet_adjacent(t, lf) == NO_INDEX) {
                         std::cerr << lf << ":Missing adjacent tet"
                                   << std::endl;
                         ok = false;
-                    } else if(tet_adjacent(t, lf) == signed_index_t(t)) {
+                    } else if(tet_adjacent(t, lf) == t) {
                         std::cerr << lf << ":Tet is adjacent to itself"
                                   << std::endl;
                         ok = false;
                     } else {
-                        index_t t2 = index_t(tet_adjacent(t, lf));
+                        index_t t2 = tet_adjacent(t, lf);
                         bool found = false;
                         for(index_t lf2 = 0; lf2 < 4; ++lf2) {
-                            if(tet_adjacent(t2, lf2) == signed_index_t(t)) {
+                            if(tet_adjacent(t2, lf2) == t) {
                                 found = true;
                             }
                         }
@@ -1142,7 +1129,7 @@ namespace GEO {
                 }
                 index_t nb_infinite = 0;
                 for(index_t lv = 0; lv < 4; ++lv) {
-                    if(tet_vertex(t, lv) == -1) {
+                    if(tet_vertex(t, lv) == NO_INDEX) {
                         ++nb_infinite;
                     }
                 }
@@ -1153,9 +1140,9 @@ namespace GEO {
                 }
             }
             for(index_t lv = 0; lv < 4; ++lv) {
-                signed_index_t v = tet_vertex(t, lv);
-                if(v >= 0) {
-                    v_has_tet[index_t(v)] = true;
+                index_t v = tet_vertex(t, lv);
+                if(v != NO_INDEX) {
+                    v_has_tet[v] = true;
                 }
             }
         }
@@ -1178,13 +1165,12 @@ namespace GEO {
         bool ok = true;
         for(index_t t = 0; t < max_t(); ++t) {
             if(!tet_is_free(t)) {
-                signed_index_t v0 = tet_vertex(t, 0);
-                signed_index_t v1 = tet_vertex(t, 1);
-                signed_index_t v2 = tet_vertex(t, 2);
-                signed_index_t v3 = tet_vertex(t, 3);
+                index_t v0 = tet_vertex(t, 0);
+                index_t v1 = tet_vertex(t, 1);
+                index_t v2 = tet_vertex(t, 2);
+                index_t v3 = tet_vertex(t, 3);
                 for(index_t v = 0; v < nb_vertices(); ++v) {
-                    signed_index_t sv = signed_index_t(v);
-                    if(sv == v0 || sv == v1 || sv == v2 || sv == v3) {
+                    if(v == v0 || v == v1 || v == v2 || v == v3) {
                         continue;
                     }
                     if(tet_is_conflict(t, vertex_ptr(v))) {

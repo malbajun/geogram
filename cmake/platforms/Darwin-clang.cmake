@@ -15,6 +15,8 @@ set(FULL_WARNINGS
     -Wno-exit-time-destructors
     -Wno-old-style-cast # Yes, old-style cast is sometime more legible...
     -Wno-format-nonliteral # Todo: use Laurent Alonso's trick
+    -Wno-poison-system-directories
+    -Wno-switch-default
 )
 
 # Compile with full warnings by default
@@ -29,8 +31,8 @@ endif()
 add_flags(CMAKE_CXX_FLAGS_RELEASE -D_FORTIFY_SOURCE=2)
 add_flags(CMAKE_C_FLAGS_RELEASE -D_FORTIFY_SOURCE=2)
 
-# C++17 standard
-add_flags(CMAKE_CXX_FLAGS -Qunused-arguments -std=c++17 -stdlib=libc++ -Wno-c++98-compat)
+# Additional C++ flags
+add_flags(CMAKE_CXX_FLAGS -Qunused-arguments -stdlib=libc++ -Wno-c++98-compat)
 
 # Enable glibc parallel mode
 #add_flags(CMAKE_CXX_FLAGS -D_GLIBCXX_PARALLEL)
@@ -129,4 +131,3 @@ macro(vor_add_executable)
     endif()
 
 endmacro()
-

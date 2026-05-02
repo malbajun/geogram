@@ -128,8 +128,9 @@ namespace GEO {
         /**
          * \brief Constructs a new PeriodicDelaunay3d.
          * \param[in] period the edge lengths along x,y,z in the periodic domain
+	 * \param[in] periodic if true, constructs a periodic triangulation.
          */
-        PeriodicDelaunay3d(const vec3& period);
+        PeriodicDelaunay3d(const vec3& period, bool periodic = true);
 
         /**
          * \copydoc Delaunay::set_vertices()
@@ -419,8 +420,8 @@ namespace GEO {
         vec3 period_;
 
         const double* weights_;
-        vector<signed_index_t> cell_to_v_store_;
-        vector<signed_index_t> cell_to_cell_store_;
+        vector<index_t> cell_to_v_store_;
+        vector<index_t> cell_to_cell_store_;
         vector<index_t> cell_next_;
 
         CellStatusArray cell_status_;
@@ -440,10 +441,14 @@ namespace GEO {
         bool verbose_debug_mode_;
 
         /**
-         * Displays the timing of the core algorithm.
+         * Displays a synthetic summary of timings at the end of the algorithm
          */
         bool benchmark_mode_;
 
+        /**
+         * Displays the detailed timing of all the phases of the algorithm
+         */
+        bool detailed_benchmark_mode_;
 
         /**
          * \brief Bitmask that indicates for each real vertex
@@ -470,6 +475,45 @@ namespace GEO {
          * \brief Use exact predicates in convex cell.
          */
         bool convex_cell_exact_predicates_;
+
+	struct Stats {
+
+	    Stats();
+
+	    void reset();
+
+	    std::string to_string() {
+		return raw_ ? to_string_raw() : to_string_pretty();
+	    }
+
+	    std::string to_string_raw() const;
+	    std::string to_string_pretty() const;
+
+            /**
+	     * If set, displays numbers without any formatting.
+	     * Set by constructor if command line argument dbg:raw_logs is set.
+	     */
+	    bool raw_;
+
+	    double  total_t_;
+
+	    double  phase_0_t_;
+
+	    double  phase_I_t_;
+	    double  phase_I_classify_t_;
+	    index_t phase_I_nb_inside_;
+	    index_t phase_I_nb_cross_;
+	    index_t phase_I_nb_outside_;
+	    double  phase_I_insert_t_;
+	    index_t phase_I_insert_nb_;
+
+	    double  phase_II_t_;
+	    double  phase_II_classify_t_;
+	    double  phase_II_insert_t_;
+	    index_t phase_II_insert_nb_;
+	} stats_;
+
+	friend class LaguerreDiagramOmegaSimple3d;
     };
 
 

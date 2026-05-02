@@ -178,7 +178,7 @@ namespace GEO {
                     old2new[i] = cur;
                     ++cur;
                 } else {
-                    old2new[i] = index_t(-1);
+                    old2new[i] = NO_INDEX;
                 }
             }
             attributes_.compress(old2new);
@@ -382,6 +382,14 @@ namespace GEO {
         resize_store(nb()-1);
     }
 
+    void MeshEdges::flip(index_t e) {
+	geo_debug_assert(e < nb());
+	index_t v1 = vertex(e,0);
+	index_t v2 = vertex(e,1);
+	set_vertex(e,0,v2);
+	set_vertex(e,1,v1);
+    }
+
     void MeshEdges::clear_store(
         bool keep_attributes, bool keep_memory
     ) {
@@ -497,7 +505,7 @@ namespace GEO {
         // to compute the index mapping for them.
         vector<index_t> corners_old2new;
         if(facet_corners_.attributes().nb() != 0) {
-            corners_old2new.resize(facet_corners_.nb(), index_t(-1));
+            corners_old2new.resize(facet_corners_.nb(), NO_INDEX);
         }
 
         for(index_t f = 0; f < nb(); ++f) {
@@ -1038,6 +1046,23 @@ namespace GEO {
     }
 
 
+    const CellDescriptor& MeshCellsStore::descriptor(index_t c) const {
+	geo_debug_assert(c < nb());
+	return is_simplicial_ ? MeshCellDescriptors::tet_descriptor :
+	    *(
+		MeshCellDescriptors::cell_type_to_cell_descriptor[
+		    cell_type_[c]
+		]
+	    );
+    }
+
+    const CellDescriptor& MeshCellsStore::cell_type_to_cell_descriptor(
+	MeshCellType t
+    ) {
+	geo_debug_assert(t < GEO::MESH_NB_CELL_TYPES);
+	return *(MeshCellDescriptors::cell_type_to_cell_descriptor[t]);
+    }
+
     /**************************************************************************/
 
     MeshCellCornersStore::MeshCellCornersStore(Mesh& mesh) :
@@ -1133,7 +1158,7 @@ namespace GEO {
         if(
             cell_corners_.attributes().nb() != 0 ||
             cell_facets_.attributes().nb() != 0) {
-            corner_facets_old2new.resize(cell_corners_.nb(), index_t(-1));
+            corner_facets_old2new.resize(cell_corners_.nb(), NO_INDEX);
         }
 
         for(index_t c=0; c<nb(); ++c) {
@@ -1759,7 +1784,8 @@ namespace GEO {
             }
             delete_elements(delete_c);
 
-            GEO::Logger::warn("Mesh") << "Re-trying to connect cells" << std::endl;
+            GEO::Logger::warn("Mesh")
+		<< "Re-trying to connect cells" << std::endl;
             connect(false,true);
         }
     }
@@ -1790,7 +1816,7 @@ namespace GEO {
             for(index_t c=0; c<nb(); ++c) {
                 for(index_t f=0; f<nb_facets(c); ++f) {
                     if(adjacent(c,f) == NO_CELL) {
-                        index_t new_f = index_t(-1);
+                        index_t new_f = NO_INDEX;
                         switch(facet_nb_vertices(c,f)) {
                         case 3:
                             new_f = mesh_.facets.create_triangle(
@@ -1891,6 +1917,9 @@ namespace GEO {
         bool copy_attributes,
         MeshElementsFlags what
     ) {
+	if(&rhs == this) {
+	    return;
+	}
         if((what & MESH_VERTICES) == 0) {
             clear(false,false);
             return;
@@ -2451,5 +2480,6 @@ namespace GEO {
                  );
         return result;
     }
+
 
 }

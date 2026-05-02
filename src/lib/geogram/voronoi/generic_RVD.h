@@ -138,7 +138,7 @@ namespace GEOGen {
                 facet_seed_marking_ = nullptr;
                 connected_component_changed_ = false;
                 current_connected_component_ = 0;
-                cur_stamp_ = -1;
+                cur_stamp_ = NO_INDEX;
                 current_facet_ = GEO::max_index_t();
                 current_seed_ = GEO::max_index_t();
                 current_polygon_ = nullptr;
@@ -723,11 +723,7 @@ namespace GEOGen {
              * \param[in] C intersection between current mesh tetrahedron
              *  and the Voronoi cell of \p v
              */
-            void operator() (
-                index_t v,
-                index_t t,
-                const Polyhedron& C
-            ) const {
+            void operator() (index_t v, index_t t, const Polyhedron& C) const {
                 for(index_t cv = 0; cv < C.max_v(); ++cv) {
                     signed_index_t ct = C.vertex_triangle(cv);
                     if(ct == -1) {
@@ -781,7 +777,7 @@ namespace GEOGen {
                         const Vertex& v2 = C.triangle_dual(c2.t);
                         const Vertex& v3 = C.triangle_dual(c3.t);
                         const_cast<ACTION&> (do_it_)(
-                            v, v_adj, t, t_adj, v1, v2, v3
+                            v, index_t(v_adj), t, index_t(t_adj), v1, v2, v3
                         );
                         c2 = c3;
                         C.move_to_next_around_vertex(c3);
@@ -972,7 +968,8 @@ namespace GEOGen {
                         const Vertex& v2 = C.triangle_dual(c2.t);
                         const Vertex& v3 = C.triangle_dual(c3.t);
                         const_cast<ACTION&> (do_it_)(
-                            v, v_adj, t, t_adj, * v0, v1, v2, v3
+                            v, index_t(v_adj), t, index_t(t_adj),
+			    *v0, v1, v2, v3
                         );
                         c2 = c3;
                         C.move_to_next_around_vertex(c3);
@@ -992,8 +989,7 @@ namespace GEOGen {
              *  is also incident to the vertex dual to \p t, false otherwise
              */
             bool facet_is_incident_to_vertex(
-                const Polyhedron& C, Polyhedron::Corner& c,
-                index_t t
+                const Polyhedron& C, Polyhedron::Corner& c, index_t t
             ) const {
                 Polyhedron::Corner first = c;
                 Polyhedron::Corner cur = c;
@@ -1081,9 +1077,7 @@ namespace GEOGen {
          *  and the Voronoi cell of v.
          */
         template <class ACTION>
-        inline void for_each_polygon(
-            const ACTION& action
-        ) {
+        inline void for_each_polygon(const ACTION& action) {
             this->template compute_surfacic<PolygonAction<ACTION> >(
                 PolygonAction<ACTION>(action)
             );
@@ -1098,9 +1092,7 @@ namespace GEOGen {
          *  (or Delaunay vertex).
          */
         template <class TRIACTION>
-        inline void for_each_triangle(
-            const TRIACTION& action
-        ) {
+        inline void for_each_triangle(const TRIACTION& action) {
             this->template compute_surfacic<TriangleAction<TRIACTION> >(
                 TriangleAction<TRIACTION>(action)
             );
@@ -1116,9 +1108,7 @@ namespace GEOGen {
          *  (or Delaunay vertex).
          */
         template <class HEACTION>
-        inline void for_each_halfedge(
-            const HEACTION& action
-        ) {
+        inline void for_each_halfedge(const HEACTION& action) {
             this->template compute_surfacic<HalfedgeAction<HEACTION> >(
                 HalfedgeAction<HEACTION>(action)
             );
@@ -1134,9 +1124,7 @@ namespace GEOGen {
          *  (or Delaunay vertex).
          */
         template <class BOACTION>
-        inline void for_each_border_halfedge(
-            const BOACTION& action
-        ) {
+        inline void for_each_border_halfedge(const BOACTION& action) {
             this->template compute_surfacic<BorderHalfedgeAction<BOACTION> >(
                 BorderHalfedgeAction<BOACTION>(action)
             );
@@ -1152,16 +1140,12 @@ namespace GEOGen {
          *  that define the primal triangle.
          */
         template <class PRIMTRIACTION>
-        inline void for_each_primal_triangle(
-            const PRIMTRIACTION& action
-        ) {
+        inline void for_each_primal_triangle(const PRIMTRIACTION& action) {
             bool sym_backup = symbolic();
             set_symbolic(true);
-            this->template compute_surfacic<
-                PrimalTriangleAction<PRIMTRIACTION
-                                     > >(
-                                         PrimalTriangleAction<PRIMTRIACTION>(action)
-                                     );
+            this->template compute_surfacic<PrimalTriangleAction<PRIMTRIACTION>>(
+		PrimalTriangleAction<PRIMTRIACTION>(action)
+	    );
             set_symbolic(sym_backup);
         }
 
@@ -1176,9 +1160,7 @@ namespace GEOGen {
          *  and the Voronoi cell of v.
          */
         template <class ACTION>
-        inline void for_each_polyhedron(
-            const ACTION& action
-        ) {
+        inline void for_each_polyhedron(const ACTION& action) {
             this->template compute_volumetric<PolyhedronAction<ACTION> >(
                 PolyhedronAction<ACTION>(action)
             );
@@ -1279,9 +1261,7 @@ namespace GEOGen {
          *  of tetrahedron.
          */
         template <class ACTION>
-        inline void for_each_primal_tetrahedron(
-            const ACTION& action
-        ) {
+        inline void for_each_primal_tetrahedron(const ACTION& action) {
             bool sym_backup = symbolic();
             set_symbolic(true);
             this->template compute_volumetric<PrimalTetrahedronAction<ACTION> >(
@@ -1336,9 +1316,7 @@ namespace GEOGen {
          *  v and facet f.
          */
         template <class ACTION>
-        inline void compute_surfacic_with_seeds_priority(
-            const ACTION& action
-        ) {
+        inline void compute_surfacic_with_seeds_priority(const ACTION& action) {
             if(
                 facets_begin_ == UNSPECIFIED_RANGE &&
                 facets_end_ == UNSPECIFIED_RANGE
@@ -1459,9 +1437,7 @@ namespace GEOGen {
          *  v and tetrahedron t
          */
         template <class ACTION>
-        inline void compute_volumetric(
-            const ACTION& action
-        ) {
+        inline void compute_volumetric(const ACTION& action) {
             if(connected_components_priority_) {
                 this->template compute_volumetric_with_cnx_priority<ACTION>(
                     action
@@ -1486,9 +1462,7 @@ namespace GEOGen {
          *  v and tetrahedron t
          */
         template <class ACTION>
-        inline void compute_volumetric_with_seeds_priority(
-            const ACTION& action
-        ) {
+        inline void compute_volumetric_with_seeds_priority(const ACTION& action){
             if(
                 tets_begin_ == UNSPECIFIED_RANGE &&
                 tets_end_ == UNSPECIFIED_RANGE
@@ -1664,7 +1638,7 @@ namespace GEOGen {
             std::deque<TetSeed> adjacent_seeds;
             std::stack<index_t> adjacent_tets;
 
-            static const index_t NO_STAMP = index_t(-1);
+            static constexpr index_t NO_STAMP = index_t(-1);
             GEO::vector<index_t> tet_stamp(
                 tets_end_ - tets_begin_, NO_STAMP
             );
@@ -1727,18 +1701,21 @@ namespace GEOGen {
                             adjacent_tets.pop();
 
                             // Copy the current tet from the Mesh into
-                            // RestrictedVoronoiDiagram's Polyhedron data structure
-                            // (gathers all the necessary information)
+                            // RestrictedVoronoiDiagram's Polyhedron
+			    // data structure (gathers all the necessary
+			    // information)
 
                             C.initialize_from_mesh_tetrahedron(
                                 mesh_, current_tet_, symbolic_, vertex_weight
                             );
 
-                            // Note: difference with compute_surfacic_with_cnx_priority():
+                            // Note: difference with
+			    //    compute_surfacic_with_cnx_priority():
                             // Since intersect_cell_cell() overwrites C, we
-                            // need to initialize C from the mesh for each visited
-                            // (tet,seed) pair (and the test for current_tet_ change
-                            // with C_index is not used here).
+                            // need to initialize C from the mesh for each
+			    // visited (tet,seed) pair (and the test for
+			    // current_tet_ change with C_index is not
+			    // used here).
                             // C_index = current_tet_;
 
                             intersect_cell_cell(current_seed_, C);
@@ -1763,14 +1740,16 @@ namespace GEOGen {
                                     continue;
                                 }
 
-                                signed_index_t id = current_polyhedron().vertex_id(v);
+                                signed_index_t id =
+				    current_polyhedron().vertex_id(v);
                                 if(id < 0) {
                                     // id == 0 corresponds to facet on boundary
                                     //   (skipped)
                                     // id < 0 corresponds to adjacent tet index
                                     signed_index_t s_neigh_t = -id-1;
                                     if(
-                                        s_neigh_t >= signed_index_t(tets_begin_) &&
+                                        s_neigh_t >= signed_index_t(tets_begin_)
+					&&
                                         s_neigh_t < signed_index_t(tets_end_)
                                     ) {
                                         geo_debug_assert(
@@ -1831,9 +1810,7 @@ namespace GEOGen {
          * \return the index of the connected component or -1 if the
          *  (\p f, \p s) couple was not visited already
          */
-        signed_index_t get_facet_seed_connected_component(
-            index_t f, index_t s
-        ) const {
+        index_t get_facet_seed_connected_component(index_t f, index_t s) const {
             geo_debug_assert(facet_seed_marking_ != nullptr);
             return facet_seed_marking_->get_connected_component(
                 FacetSeed(f, s)
@@ -1894,7 +1871,7 @@ namespace GEOGen {
             std::deque<FacetSeed> adjacent_seeds;
             std::stack<index_t> adjacent_facets;
 
-            static const index_t NO_STAMP = index_t(-1);
+            static constexpr index_t NO_STAMP = index_t(-1);
             GEO::vector<index_t> facet_stamp(
                 facets_end_ - facets_begin_, NO_STAMP
             );
@@ -2421,7 +2398,7 @@ namespace GEOGen {
             // neighbors.
             if(delaunay_->dimension() == 3 && delaunay_->nb_cells() != 0) {
                 cur_stamp_ = 0;
-                stamp_.assign(delaunay_->nb_vertices(), -1);
+                stamp_.assign(delaunay_->nb_vertices(), NO_INDEX);
             }
         }
 
@@ -2444,7 +2421,7 @@ namespace GEOGen {
                 neighbors_.resize(0);
                 index_t t = index_t(delaunay_->vertex_cell(v));
                 do {
-                    index_t lv = delaunay_->index(t, signed_index_t(v));
+                    index_t lv = delaunay_->index(t, v);
                     for(index_t lw = 0; lw < delaunay_->cell_size(); lw++) {
                         if(lw != lv) {
                             index_t w = index_t(delaunay_->cell_vertex(t, lw));
@@ -2477,8 +2454,8 @@ namespace GEOGen {
         index_t current_tet_;
 
         // For optimized get_neighbors().
-        signed_index_t cur_stamp_;
-        GEO::vector<signed_index_t> stamp_;
+        index_t cur_stamp_;
+        GEO::vector<index_t> stamp_;
 
         bool symbolic_;
         bool check_SR_;
@@ -2486,7 +2463,7 @@ namespace GEOGen {
 
         coord_index_t dimension_;
 
-        static const index_t UNSPECIFIED_RANGE = index_t(-1);
+        static constexpr index_t UNSPECIFIED_RANGE = index_t(-1);
 
         index_t facets_begin_;
         index_t facets_end_;
@@ -2499,16 +2476,15 @@ namespace GEOGen {
         bool connected_component_changed_;
         index_t current_connected_component_;
 
-    private:
         /**
          * \brief Forbids construction from copy.
          */
-        RestrictedVoronoiDiagram(const thisclass& rhs);
+        RestrictedVoronoiDiagram(const thisclass& rhs) = delete;
 
         /**
          * \brief Forbids assignment.
          */
-        thisclass& operator= (const thisclass& rhs);
+        thisclass& operator= (const thisclass& rhs) = delete;
     };
 }
 

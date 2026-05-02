@@ -45,7 +45,8 @@
 #include <atomic>
 
 // In GARGANTUA mode (64-bit indices), we also enable
-// more than 127 concurrent threads.
+// more than 127 concurrent threads (16-bits cell status,
+// that contain owner thread id).
 #ifdef GARGANTUA
 #define GEO_CONNECTION_MACHINE
 #endif
@@ -292,6 +293,7 @@ namespace GEO {
             }
 #endif
             delete[] cell_status_;
+	    cell_status_ = nullptr;
             size_ = 0;
             capacity_ = 0;
         }

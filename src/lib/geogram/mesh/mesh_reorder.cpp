@@ -779,8 +779,8 @@ namespace {
                 geo_debug_assert(e >= b);
                 geo_cite_with_info(
                     "WEB:SpatialSorting",
-                    "The implementation of spatial sort in GEOGRAM is inspired by "
-                    "the idea of using \\verb|std::nth_element()| and the recursive"
+                    "The implementation of spatial sort is inspired by "
+                    "the use of \\verb|std::nth_element()| and the recursive"
                     " template in the spatial sort package of CGAL"
                 );
 
@@ -797,8 +797,11 @@ namespace {
 
                 // Parallel sorting (2 then 4 then 8 sorts in parallel)
 
-// Unfortunately we cannot access consts for template arguments in lambdas in all
-// compilers (gcc is OK but not MSVC) so I'm using (ugly) macros here...
+                // Unfortunately we cannot access consts/constexprs for template
+                // arguments in lambdas in all compilers (gcc/clang OK but not
+                // MSVC) so I'm using macros here (it is ugly, but it is not a
+                // big drama), and I prefer that instead of hardwired constants
+		// that would make the code more difficult to read.
 
 #          define COORDX 0
 #          define COORDY 1
@@ -841,6 +844,7 @@ namespace {
 #          undef UPX
 #          undef UPY
 #          undef UPZ
+
             }
 
     private:
@@ -929,8 +933,8 @@ namespace {
                 geo_debug_assert(e > b);
                 geo_cite_with_info(
                     "WEB:SpatialSorting",
-                    "The implementation of spatial sort in GEOGRAM is inspired by "
-                    "the idea of using \\verb|std::nth_element()| and the recursive"
+                    "The implementation of spatial sort is inspired by "
+                    "the use of \\verb|std::nth_element()| and the recursive"
                     " template in the spatial sort package of CGAL"
                 );
 
@@ -1157,12 +1161,12 @@ namespace GEO {
 
 #ifndef GEOGRAM_PSM
 
-    void mesh_reorder(Mesh& M, MeshOrder order) {
+    void mesh_reorder(Mesh& M, MeshOrder order, MeshElementsFlags elements) {
 
         geo_assert(M.vertices.dimension() >= 3);
 
         // Step 1: reorder vertices
-        {
+        if((elements & MESH_VERTICES) != 0) {
             vector<index_t> sorted_indices;
             switch(order) {
             case MESH_ORDER_HILBERT:
@@ -1176,7 +1180,7 @@ namespace GEO {
         }
 
         // Step 2: reorder facets
-        if(M.facets.nb() != 0) {
+        if(((elements & MESH_FACETS) != 0) && (M.facets.nb() != 0)) {
             vector<index_t> sorted_indices;
             switch(order) {
             case MESH_ORDER_HILBERT:
@@ -1190,7 +1194,7 @@ namespace GEO {
         }
 
         // Step 3: reorder cells
-        if(M.cells.nb() != 0) {
+        if(((elements & MESH_CELLS) != 0) && (M.cells.nb() != 0)) {
             vector<index_t> sorted_indices;
             switch(order) {
             case MESH_ORDER_HILBERT:
@@ -1204,6 +1208,52 @@ namespace GEO {
         }
     }
 
+    void compute_mesh_elements_spatial_order(
+	const Mesh& M, MeshElementsFlags elements,
+	vector<index_t>& sorted_indices, MeshOrder order
+    ) {
+	geo_assert(M.vertices.dimension() >= 3);
+	switch(elements) {
+	case MESH_VERTICES: {
+            switch(order) {
+            case MESH_ORDER_HILBERT:
+                hilbert_vsort_3d(M, sorted_indices);
+                break;
+            case MESH_ORDER_MORTON:
+                morton_vsort_3d(M, sorted_indices);
+                break;
+            }
+	} break;
+	case MESH_FACETS: {
+	    switch(order) {
+	    case MESH_ORDER_HILBERT:
+		hilbert_fsort_3d(M, sorted_indices);
+		break;
+	    case MESH_ORDER_MORTON:
+		morton_fsort_3d(M, sorted_indices);
+		break;
+	    }
+	} break;
+	case MESH_CELLS: {
+            switch(order) {
+            case MESH_ORDER_HILBERT:
+                hilbert_csort_3d(M, sorted_indices);
+                break;
+            case MESH_ORDER_MORTON:
+                morton_csort_3d(M, sorted_indices);
+                break;
+            }
+	} break;
+	case MESH_NONE:
+        case MESH_EDGES:
+	case MESH_ALL_ELEMENTS:
+        case MESH_FACET_CORNERS:
+        case MESH_CELL_CORNERS:
+	case MESH_CELL_FACETS:
+        case MESH_ALL_SUBELEMENTS:
+	    geo_assert_not_reached;
+	}
+    }
 #endif
 
 

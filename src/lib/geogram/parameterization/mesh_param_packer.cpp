@@ -84,14 +84,14 @@ namespace {
 
 
             for(index_t v: M.vertices) {
-                xatlas_vertex_index[v] = index_t(-1);
+                xatlas_vertex_index[v] = NO_INDEX;
             }
             index_t cur_xatlas_vertex = 0;
             for(index_t f: M.facets) {
                 if(chart[f] == chart_id) {
                     for(index_t c: M.facets.corners(f)) {
                         index_t v = M.facet_corners.vertex(c);
-                        if(xatlas_vertex_index[v] == index_t(-1)) {
+                        if(xatlas_vertex_index[v] == NO_INDEX) {
                             xatlas_vertex_index[v] = cur_xatlas_vertex;
                             const double* xyz = M.vertices.point_ptr(v);
                             xyz_.push_back(float(xyz[0]));
@@ -348,7 +348,7 @@ namespace GEO {
             for(index_t f1: facets) {
                 for(index_t le = 0; le < mesh.facets.nb_vertices(f1); ++le) {
                     index_t f2 = mesh.facets.adjacent(f1,le);
-                    if(f2 == index_t(-1) || chart[f2] != id) {
+                    if(f2 == NO_INDEX || chart[f2] != id) {
                         ++result;
                     }
                 }
@@ -371,9 +371,9 @@ namespace GEO {
             for(index_t f1: facets) {
                 for(index_t le = 0; le < mesh.facets.nb_vertices(f1); ++le) {
                     index_t f2 = mesh.facets.adjacent(f1,le);
-                    if(f2 == index_t(-1) || chart[f2] != id) {
+                    if(f2 == NO_INDEX || chart[f2] != id) {
                         index_t v = mesh.facets.vertex(f1,le);
-                        border_bary += vec3(mesh.vertices.point_ptr(v));
+                        border_bary += mesh.vertices.point(v);
                         ++bary_N;
                     }
                 }
@@ -386,15 +386,14 @@ namespace GEO {
 
             for(index_t f1: facets) {
                 total_area += Geom::mesh_facet_area(mesh,f1);
-
                 index_t N = mesh.facets.nb_vertices(f1);
                 for(index_t le = 0; le < N; ++le) {
                     index_t f2 = mesh.facets.adjacent(f1,le);
-                    if(f2 == index_t(-1) || chart[f2] != id) {
+                    if(f2 == NO_INDEX || chart[f2] != id) {
                         index_t v1 = mesh.facets.vertex(f1,le);
                         index_t v2 = mesh.facets.vertex(f1,(le+1) % N);
-                        vec3 p1(mesh.vertices.point_ptr(v1));
-                        vec3 p2(mesh.vertices.point_ptr(v2));
+                        vec3 p1 = mesh.vertices.point(v1);
+                        vec3 p2 = mesh.vertices.point(v2);
                         border_area += Geom::triangle_area(border_bary, p1, p2);
                     }
                 }

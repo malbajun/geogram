@@ -84,9 +84,9 @@ namespace GEO {
         class Edge {
         public:
             Edge(
-                index_t v1_in = index_t(-1),
-                index_t v2_in = index_t(-1),
-                index_t f2    = index_t(-1),
+                index_t v1_in = NO_INDEX,
+                index_t v2_in = NO_INDEX,
+                index_t f2    = NO_INDEX,
                 TriangleRegion R2 = T2_RGN_T
             ) : v1(v1_in),
                 v2(v2_in) {
@@ -123,10 +123,10 @@ namespace GEO {
              * \param[in] lv local vertex index in \p f
              */
             Vertex(MeshInTriangle* M, index_t f, index_t lv) {
-                geo_assert(f == M->f1_);
+                geo_debug_assert(f == M->f1_);
                 type = MESH_VERTEX;
                 mit = M;
-                init_sym(f, index_t(-1), TriangleRegion(lv), T2_RGN_T);
+                init_sym(f, NO_INDEX, TriangleRegion(lv), T2_RGN_T);
                 init_geometry(compute_geometry());
             }
 
@@ -141,7 +141,7 @@ namespace GEO {
                 index_t f1, index_t f2,
                 TriangleRegion R1, TriangleRegion R2
             ) {
-                geo_assert(f1 == M->f1_);
+                geo_debug_assert(f1 == M->f1_);
                 type = PRIMARY_ISECT;
                 mit = M;
                 init_sym(f1,f2,R1,R2);
@@ -158,7 +158,7 @@ namespace GEO {
             ) {
                 type = SECONDARY_ISECT;
                 mit = M;
-                init_sym(index_t(-1), index_t(-1), T1_RGN_T, T2_RGN_T);
+                init_sym(NO_INDEX, NO_INDEX, T1_RGN_T, T2_RGN_T);
                 init_geometry(point_exact_in);
             }
 
@@ -168,8 +168,8 @@ namespace GEO {
             Vertex() {
                 type = UNINITIALIZED;
                 mit = nullptr;
-                init_sym(index_t(-1), index_t(-1), T1_RGN_T, T2_RGN_T);
-                mesh_vertex_index = index_t(-1);
+                init_sym(NO_INDEX, NO_INDEX, T1_RGN_T, T2_RGN_T);
+                mesh_vertex_index = NO_INDEX;
             }
 
             /**
@@ -220,7 +220,7 @@ namespace GEO {
                 sym.f2 = f2;
                 sym.R1 = R1;
                 sym.R2 = R2;
-                mesh_vertex_index = index_t(-1);
+                mesh_vertex_index = NO_INDEX;
             }
 
             /**
@@ -562,32 +562,21 @@ namespace GEO {
         void find_coplanar_facets();
 
         /**
-         * \brief Gets the coordinate along which one can project a triangle
-         *  without creating degeneracies.
-         * \param[in] p1 , p2 , p3 the three vertices of the triangle, with
-         *   exact homogeneous coordinates.
-         * \return one of {0,1,2}
-         */
-        static coord_index_t triangle_normal_axis(
-            const ExactPoint& p1, const ExactPoint& p2, const ExactPoint& p3
-        );
-
-        /**
-         * \brief Tests whether two adjacent triangles are coplanar
+         * \brief Tests whether two triangles are coplanar
          * \details This is used to determine the facets that can be
          *  merged
-         * \param[in] P1 , P2 , P3 , P4 the vertices of the triangles,
-         *  as points with exact homogeneous coordinates. The two triangles
-         *  are \p P1, \p P2, \p P3 and \p P2, \p P1, \p P4
+	 * \param[in] p1 , p2 , p3 the vertices of the first triangle
+	 * \param[in] q1 , q2 , q3 the vertices of the second triangle
          * \retval true if the two triangles are coplanar
          * \retval false otherwise
          * \details uses angle_tolerance specified to the constructor (if set
          *  to zero, uses exact computation)
-         */
-        bool triangles_are_coplanar(
-            const ExactPoint& P1, const ExactPoint& P2,
-            const ExactPoint& P3, const ExactPoint& P4
-        ) const;
+	 */
+	bool triangles_are_coplanar(
+	    const vec3& p1, const vec3& p2, const vec3& p3,
+	    const vec3& q1, const vec3& q2, const vec3& q3
+	) const;
+
 
         /**
          * \brief Tests whether two edges are co-linear
@@ -628,13 +617,15 @@ namespace GEO {
         }
 
     private:
-        MeshSurfaceIntersection& intersection_;
+        MeshSurfaceIntersection& I_;
         Mesh& mesh_;
+	const Mesh& mesh_copy_;
         double angle_tolerance_;
         index_t group_id_;
         Attribute<index_t> facet_group_;
         Attribute<bool> keep_vertex_;
         Attribute<bool> c_is_coplanar_;
+	Attribute<bool> f_is_flipped_;
         vector<bool>    f_visited_;
         vector<bool>    h_visited_;
         vector<bool>    v_visited_;

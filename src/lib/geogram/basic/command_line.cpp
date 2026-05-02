@@ -91,6 +91,8 @@ namespace {
     // it will be easily processed by help2man
     bool man_mode = false;
 
+    Process::spinlock lock = GEOGRAM_SPINLOCK_INIT;
+
     /**
      * \brief Command line argument
      * \details Arg stores information about command line arguments:
@@ -269,13 +271,20 @@ namespace {
             std::ifstream in(config_filename.c_str());
             std::string line;
             while(std::getline(in,line)) {
-                if(line.length() >= 3 && line[0] == '[' && line[line.length()-1] == ']') {
-                    section = String::to_uppercase(line.substr(1,line.length()-2));
+                if(
+		    line.length() >= 3 && line[0] == '[' &&
+		    line[line.length()-1] == ']'
+		) {
+                    section = String::to_uppercase(
+			line.substr(1,line.length()-2)
+		    );
                 } else if(section == program_name || section == "*") {
                     size_t pos = line.find("=");
                     if(pos != std::string::npos) {
                         std::string argname = line.substr(0,pos);
-                        std::string argval  = line.substr(pos+1,line.length()-pos-1);
+                        std::string argval  = line.substr(
+			    pos+1,line.length()-pos-1
+			);
                         if(CmdLine::arg_is_declared(argname)) {
                             CmdLine::set_arg(argname, argval);
                         } else {
@@ -580,6 +589,18 @@ namespace GEO {
             parse_config_file(filename, program_name);
         }
 
+	void save_config(const std::string& filename) {
+	    std::ofstream out(filename);
+	    if(!out) {
+		Logger::err("CmdLine") << filename << ": could not create"
+				       << std::endl;
+	    }
+	    for(const auto& arg: desc_->args) {
+		const std::string& argname = arg.first;
+		out << argname << "=" <<  get_arg(argname) << std::endl;
+	    }
+	}
+
 
         bool config_file_loaded() {
             return loaded_config_file;
@@ -757,8 +778,18 @@ namespace GEO {
                 : it->second.type;
         }
 
+	std::string get_arg_desc(const std::string& name) {
+            auto it = desc_->args.find(name);
+            return it == desc_->args.end()
+                ? ""
+                : it->second.desc;
+	}
+
         std::string get_arg(const std::string& name) {
-            return Environment::instance()->get_value(name);
+	    Process::acquire_spinlock(lock);
+	    std::string result = Environment::instance()->get_value(name);
+	    Process::release_spinlock(lock);
+	    return result;
         }
 
         bool arg_is_declared(const std::string& name) {
@@ -813,13 +844,13 @@ namespace GEO {
                 String::to_bool(get_arg(name));
         }
 
-        bool set_arg(
-            const std::string& name, const std::string& value
-        ) {
+        bool set_arg(const std::string& name, const std::string& value) {
             if(!check_arg_value(name, value)) {
                 return false;
             }
+	    Process::acquire_spinlock(lock);
             Environment::instance()->set_value(name, value);
+	    Process::release_spinlock(lock);
             return true;
         }
 
@@ -828,7 +859,7 @@ namespace GEO {
             geo_assert_arg_type(
                 type, ARG_INT | ARG_DOUBLE | ARG_PERCENT | ARG_STRING
             );
-            Environment::instance()->set_value(name, String::to_string(value));
+	    set_arg(name, String::to_string(value));
         }
 
         void set_arg(const std::string& name, Numeric::uint32 value) {
@@ -836,7 +867,7 @@ namespace GEO {
             geo_assert_arg_type(
                 type, ARG_INT | ARG_DOUBLE | ARG_PERCENT | ARG_STRING
             );
-            Environment::instance()->set_value(name, String::to_string(value));
+	    set_arg(name, String::to_string(value));
         }
 
         void set_arg(const std::string& name, Numeric::int64 value) {
@@ -844,7 +875,7 @@ namespace GEO {
             geo_assert_arg_type(
                 type, ARG_INT | ARG_DOUBLE | ARG_PERCENT | ARG_STRING
             );
-            Environment::instance()->set_value(name, String::to_string(value));
+	    set_arg(name, String::to_string(value));
         }
 
         void set_arg(const std::string& name, Numeric::uint64 value) {
@@ -852,28 +883,47 @@ namespace GEO {
             geo_assert_arg_type(
                 type, ARG_INT | ARG_DOUBLE | ARG_PERCENT | ARG_STRING
             );
-            Environment::instance()->set_value(name, String::to_string(value));
+	    set_arg(name, String::to_string(value));
         }
 
         void set_arg(const std::string& name, double value) {
             ArgType type = get_arg_type(name);
             geo_assert_arg_type(type, ARG_DOUBLE | ARG_PERCENT | ARG_STRING);
-            Environment::instance()->set_value(name, String::to_string(value));
+	    set_arg(name, String::to_string(value));
         }
 
         void set_arg(const std::string& name, bool value) {
             ArgType type = get_arg_type(name);
             geo_assert_arg_type(type, ARG_BOOL | ARG_STRING);
-            Environment::instance()->set_value(name, String::to_string(value));
+	    set_arg(name, String::to_string(value));
         }
 
         void set_arg_percent(const std::string& name, double value) {
             ArgType type = get_arg_type(name);
             geo_assert_arg_type(type, ARG_PERCENT | ARG_STRING);
-            Environment::instance()->set_value(
-                name, String::to_string(value) + "%"
-            );
+	    set_arg(name, String::to_string(value) + "%");
         }
+
+	void get_arg_groups(std::vector<std::string>& groups) {
+	    groups.clear();
+            for(auto& it : desc_->group_names) {
+		groups.push_back(it);
+            }
+	}
+
+	void get_arg_names_in_group(
+	    const std::string& group, std::vector<std::string>& arg_names
+	) {
+	    arg_names.clear();
+	    auto it = desc_->groups.find(group);
+	    if(it == desc_->groups.end()) {
+		return;
+	    }
+	    const Group& g = it->second;
+	    for(auto jt: g.args) {
+		arg_names.push_back(jt);
+	    }
+	}
 
         void show_usage(const std::string& additional_args, bool advanced) {
             std::string program_name = FileSystem::base_name(desc_->argv0);

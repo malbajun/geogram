@@ -206,6 +206,40 @@ namespace GEO {
         if(CmdLine::arg_is_declared("gui:font_size")) {
             set_font_size(CmdLine::get_arg_uint("gui:font_size"));
         }
+#if defined(GEO_OS_UNIX)
+	{
+            // NVidia/Optimus GPU selection under Linux:
+	    // controlled by two environment variables.
+	    std::string adapter = CmdLine::get_arg("gfx:adapter");
+	    if(adapter != "default") {
+		::setenv("__NV_PRIME_RENDER_OFFLOAD", "1", 1);
+		::setenv("__GLX_VENDOR_LIBRARY_NAME", adapter.c_str(), 1);
+	    }
+	}
+#elif defined(GEO_OS_WINDOWS)
+	{
+            // NVidia/Optimus GPU selection under windows:
+            // GPU selection is enabled  when this symbol is exported by
+	    // the main program (or by a library *statically* linked to it).
+	    // Then the NVidia GPU is selected if this value is non-zero when
+	    // the OpenGL context is created.
+	    std::string adapter = CmdLine::get_arg("gfx:adapter");
+	    if(adapter != "default") {
+		HMODULE hModule = GetModuleHandle(nullptr);
+		DWORD* p_NvOptimusEnablement = reinterpret_cast<DWORD*>(
+		    GetProcAddress(hModule, "NvOptimusEnablement")
+		);
+		if(p_NvOptimusEnablement == nullptr) {
+		    Logger::warn("Application")
+			<< "missing GEO_APPLICATION_GLOBALS declaration "
+			<< "in applicatiion source"
+			<< std::endl;
+		} else {
+		    *p_NvOptimusEnablement = (adapter == "nvidia");
+		}
+	    }
+	}
+#endif
         create_window();
         main_loop();
     }
@@ -215,7 +249,7 @@ namespace GEO {
     }
 
     std::string Application::get_styles() {
-        return "Light;Dark";
+        return "Light;Dark;Polyscope";
     }
 
     void Application::set_style(const std::string& style_name) {
@@ -247,7 +281,63 @@ namespace GEO {
             ImVec4* colors = style.Colors;
             colors[ImGuiCol_Text]         = ImVec4(0.50f, 1.00f, 1.00f, 1.00f);
             colors[ImGuiCol_TextDisabled] = ImVec4(0.30f, 0.50f, 0.50f, 1.00f);
-        } else {
+        } else if(style_name == "Polyscope") {
+	    ImGuiStyle& style = ImGui::GetStyle();
+
+	    style.WindowRounding = 1;
+	    style.FrameRounding = 1;
+	    style.FramePadding.y = 4;
+	    style.ScrollbarRounding = 1;
+	    style.ScrollbarSize = 20;
+
+            style.FrameBorderSize = 0.0f;
+
+	    // Colors
+	    ImVec4* colors = style.Colors;
+	    colors[ImGuiCol_Text] = ImVec4(0.90f, 0.90f, 0.90f, 1.00f);
+	    colors[ImGuiCol_TextDisabled] = ImVec4(0.60f, 0.60f, 0.60f, 1.00f);
+	    colors[ImGuiCol_WindowBg] = ImVec4(0.00f, 0.00f, 0.00f, 0.70f);
+	    colors[ImGuiCol_ChildBg] = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
+	    colors[ImGuiCol_PopupBg] = ImVec4(0.11f, 0.11f, 0.14f, 0.92f);
+	    colors[ImGuiCol_Border] = ImVec4(0.50f, 0.50f, 0.50f, 0.50f);
+	    colors[ImGuiCol_BorderShadow] = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
+	    colors[ImGuiCol_FrameBg] = ImVec4(0.63f, 0.63f, 0.63f, 0.39f);
+	    colors[ImGuiCol_FrameBgHovered] = ImVec4(0.47f, 0.69f, 0.59f, 0.40f);
+	    colors[ImGuiCol_FrameBgActive] = ImVec4(0.41f, 0.64f, 0.53f, 0.69f);
+	    colors[ImGuiCol_TitleBg] = ImVec4(0.27f, 0.54f, 0.42f, 0.83f);
+	    colors[ImGuiCol_TitleBgActive] = ImVec4(0.32f, 0.63f, 0.49f, 0.87f);
+	    colors[ImGuiCol_TitleBgCollapsed] = ImVec4(0.27f, 0.54f, 0.42f, 0.83f);
+	    colors[ImGuiCol_MenuBarBg] = ImVec4(0.40f, 0.55f, 0.48f, 0.80f);
+	    colors[ImGuiCol_ScrollbarBg] = ImVec4(0.63f, 0.63f, 0.63f, 0.39f);
+	    colors[ImGuiCol_ScrollbarGrab] = ImVec4(0.00f, 0.00f, 0.00f, 0.30f);
+	    colors[ImGuiCol_ScrollbarGrabHovered] = ImVec4(0.40f, 0.80f, 0.62f, 0.40f);
+	    colors[ImGuiCol_ScrollbarGrabActive] = ImVec4(0.39f, 0.80f, 0.61f, 0.60f);
+	    colors[ImGuiCol_CheckMark] = ImVec4(0.90f, 0.90f, 0.90f, 0.50f);
+	    colors[ImGuiCol_SliderGrab] = ImVec4(1.00f, 1.00f, 1.00f, 0.30f);
+	    colors[ImGuiCol_SliderGrabActive] = ImVec4(0.39f, 0.80f, 0.61f, 0.60f);
+	    colors[ImGuiCol_Button] = ImVec4(0.35f, 0.61f, 0.49f, 0.62f);
+	    colors[ImGuiCol_ButtonHovered] = ImVec4(0.40f, 0.71f, 0.57f, 0.79f);
+	    colors[ImGuiCol_ButtonActive] = ImVec4(0.46f, 0.80f, 0.64f, 1.00f);
+	    colors[ImGuiCol_Header] = ImVec4(0.40f, 0.90f, 0.67f, 0.45f);
+	    colors[ImGuiCol_HeaderHovered] = ImVec4(0.45f, 0.90f, 0.69f, 0.80f);
+	    colors[ImGuiCol_HeaderActive] = ImVec4(0.53f, 0.87f, 0.71f, 0.80f);
+	    colors[ImGuiCol_Separator] = ImVec4(0.50f, 0.50f, 0.50f, 1.00f);
+	    colors[ImGuiCol_SeparatorHovered] = ImVec4(0.60f, 0.70f, 0.66f, 1.00f);
+	    colors[ImGuiCol_SeparatorActive] = ImVec4(0.70f, 0.90f, 0.81f, 1.00f);
+	    colors[ImGuiCol_ResizeGrip] = ImVec4(1.00f, 1.00f, 1.00f, 0.16f);
+	    colors[ImGuiCol_ResizeGripHovered] = ImVec4(0.78f, 1.00f, 0.90f, 0.60f);
+	    colors[ImGuiCol_ResizeGripActive] = ImVec4(0.78f, 1.00f, 0.90f, 0.90f);
+	    colors[ImGuiCol_PlotLines] = ImVec4(1.00f, 1.00f, 1.00f, 1.00f);
+	    colors[ImGuiCol_PlotLinesHovered] = ImVec4(0.90f, 0.70f, 0.00f, 1.00f);
+	    colors[ImGuiCol_PlotHistogram] = ImVec4(0.90f, 0.70f, 0.00f, 1.00f);
+	    colors[ImGuiCol_PlotHistogramHovered] = ImVec4(1.00f, 0.60f, 0.00f, 1.00f);
+	    colors[ImGuiCol_TextSelectedBg] = ImVec4(0.00f, 0.00f, 1.00f, 0.35f);
+	    colors[ImGuiCol_ModalWindowDimBg] = ImVec4(0.20f, 0.20f, 0.20f, 0.35f);
+	    colors[ImGuiCol_DragDropTarget] = ImVec4(1.00f, 1.00f, 0.00f, 0.90f);
+	    colors[ImGuiCol_Tab] = ImVec4(0.27f, 0.54f, 0.42f, 0.83f);
+	    colors[ImGuiCol_TabHovered] = ImVec4(0.34f, 0.68f, 0.53f, 0.83f);
+	    colors[ImGuiCol_TabSelected] = ImVec4(0.38f, 0.76f, 0.58f, 0.83f);
+	} else {
             set_style("Light");
             Logger::err("Skin") << style_name << ": no such style"
                                 << std::endl;
@@ -284,7 +374,7 @@ namespace GEO {
     }
 
     double Application::scaling() const {
-        return scaling_ * hidpi_scaling_ / pixel_ratio_;
+        return scaling_; //  * hidpi_scaling_ / pixel_ratio_;
     }
 
     void Application::resize(
@@ -388,7 +478,7 @@ namespace GEO {
             return;
         }
         update();
-        if(nb_update_locks_ == 0 && !Process::is_running_threads()) {
+        if(!updates_locked() && !Process::is_running_threads()) {
             one_frame();
         }
     }
@@ -437,8 +527,6 @@ namespace GEO {
             io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
         }
 
-        // Note: NavKeyboard sets WantsCaptureKeyboard all the time and
-        // thus prevents from nanosleeping !
         if(
             CmdLine::arg_is_declared("gui:keyboard_nav") &&
             CmdLine::get_arg_bool("gui:keyboard_nav")
@@ -485,6 +573,8 @@ namespace GEO {
     }
 
     void Application::ImGui_load_fonts() {
+	font_sizes_.resize(0);
+
         ImGuiIO& io = ImGui::GetIO();
         io.IniFilename = nullptr;
 
@@ -493,13 +583,16 @@ namespace GEO {
             s = float(std::max(get_width(), get_height())) / 600.0f;
         }
 
-        float font_size = s * float(double(font_size_) * hidpi_scaling_);
+        // Do not multiply by hidpiscaling_,seems that Dear ImGui does that
+	// on its own now.
+        float font_size = s * float(font_size_);
 
         // Default font
         io.FontDefault = io.Fonts->AddFontFromMemoryCompressedTTF(
             roboto_medium_compressed_data,
             roboto_medium_compressed_size, font_size
         );
+	font_sizes_.push_back(font_size);
 
         // Add icons to default font.
         {
@@ -522,6 +615,7 @@ namespace GEO {
                 fa_solid_compressed_size, font_size,
                 &config, icon_ranges
             );
+	    font_sizes_.push_back(font_size);
 
             init_icon_table();
         }
@@ -531,12 +625,14 @@ namespace GEO {
             cousine_regular_compressed_data,
             cousine_regular_compressed_size, font_size
         );
+	font_sizes_.push_back(font_size);
 
         // Larger font
         io.Fonts->AddFontFromMemoryCompressedTTF(
             roboto_medium_compressed_data,
             roboto_medium_compressed_size, font_size*1.5f
         );
+	font_sizes_.push_back(font_size);
 
         if(phone_screen_) {
             // Smaller fixed font for console
@@ -544,9 +640,10 @@ namespace GEO {
                 cousine_regular_compressed_data,
                 cousine_regular_compressed_size, font_size*0.5f
             );
+	    font_sizes_.push_back(font_size);
         }
 
-        io.FontGlobalScale = float(1.0 / pixel_ratio_);
+        font_global_scale_ = float(1.0 / pixel_ratio_);
     }
 
     void Application::ImGui_terminate() {
@@ -574,10 +671,7 @@ namespace GEO {
 
     void Application::geogram_initialize(int argc, char** argv) {
         GEO::initialize(GEO::GEOGRAM_INSTALL_ALL);
-        CmdLine::import_arg_group("standard");
-        CmdLine::import_arg_group("algo");
-        CmdLine::import_arg_group("gfx");
-        CmdLine::import_arg_group("gui");
+	declare_args();
         CmdLine::parse(argc, argv, filenames_);
         phone_screen_ = CmdLine::get_arg_bool("gui:phone_screen");
 #ifndef GEO_OS_ANDROID
@@ -585,6 +679,13 @@ namespace GEO {
             CmdLine::set_arg("gfx:geometry", "768x1024");
         }
 #endif
+    }
+
+    void Application::declare_args() {
+        CmdLine::import_arg_group("standard");
+        CmdLine::import_arg_group("algo");
+        CmdLine::import_arg_group("gfx");
+        CmdLine::import_arg_group("gui");
     }
 
     bool Application::needs_to_redraw() const {
@@ -705,9 +806,18 @@ namespace GEO {
             );
 
         } else {
+
+	    if(CmdLine::get_arg_bool("gfx:hidden")) {
+		glfwWindowHint(GLFW_VISIBLE,GL_FALSE);
+	    }
+
             data_->window_ = glfwCreateWindow(
                 int(width_), int(height_), title, nullptr, nullptr
             );
+
+	    // seems that without the line below window cannot be made
+	    // larger than default monitor.
+	    glfwSetWindowSize(data_->window_, int(width_), int(height_));
         }
 
         if(data_->window_ == nullptr) {
@@ -738,7 +848,7 @@ namespace GEO {
     }
 
 
-    void Application::one_frame() {
+    void Application::one_frame(bool draw_GUI) {
         // Avoid nested ImGui calls
         // (due to calling draw())
         if(currently_drawing_gui_) {
@@ -797,13 +907,20 @@ namespace GEO {
 
         if(needs_to_redraw()) {
             pre_draw();
-            currently_drawing_gui_ = true;
-            ImGui_new_frame();
+
+	    if(draw_GUI) {
+		currently_drawing_gui_ = true;
+		ImGui_new_frame();
+	    }
+
             draw_graphics();
-            draw_gui();
-            ImGui::Render();
-            ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-            glUseProgram(0); // RenderDrawData() leaves a bound program
+
+	    if(draw_GUI) {
+		draw_gui();
+		ImGui::Render();
+		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+		glUseProgram(0); // RenderDrawData() leaves a bound program
+	    }
 
 #ifndef GEO_OS_EMSCRIPTEN
             // Update and Render additional Platform Windows
@@ -816,7 +933,9 @@ namespace GEO {
             }
 #endif
 
-            currently_drawing_gui_ = false;
+	    if(draw_GUI) {
+		currently_drawing_gui_ = false;
+	    }
 
 #ifdef GEO_OS_EMSCRIPTEN
             // Set alpha channel to 1 else the image is composited
@@ -827,7 +946,9 @@ namespace GEO {
             glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 #endif
 
-            glfwSwapBuffers(data_->window_);
+	    if(draw_GUI) {
+		glfwSwapBuffers(data_->window_);
+	    }
             post_draw();
             if(
                 nb_frames_update_ > 0 && !animate_ &&
@@ -942,11 +1063,13 @@ namespace GEO {
             Application* app = static_cast<Application*>(
                 glfwGetWindowUserPointer(w)
             );
+	    app->lock_updates();
             app->update();
             ImGui_ImplGlfw_MouseButtonCallback(w, button, action, mods);
             if(!ImGui::GetIO().WantCaptureMouse) {
                 app->mouse_button_callback(button,action,mods);
             }
+	    app->unlock_updates();
         }
 
         void GLFW_callback_cursor_pos(
@@ -955,11 +1078,13 @@ namespace GEO {
             Application* app = static_cast<Application*>(
                 glfwGetWindowUserPointer(w)
             );
+	    app->lock_updates();
             app->update();
             ImGui_ImplGlfw_CursorPosCallback(w,xf,yf);
             if(!ImGui::GetIO().WantCaptureMouse) {
                 app->cursor_pos_callback(xf, yf);
             }
+	    app->unlock_updates();
         }
 
         void GLFW_callback_scroll(
@@ -968,6 +1093,7 @@ namespace GEO {
             Application* app = static_cast<Application*>(
                 glfwGetWindowUserPointer(w)
             );
+	    app->lock_updates();
             app->update();
             if(!ImGui::GetIO().WantCaptureMouse) {
 #ifdef GEO_OS_EMSCRIPTEN
@@ -983,6 +1109,7 @@ namespace GEO {
 #endif
             }
             ImGui_ImplGlfw_ScrollCallback(w,xoffset,yoffset);
+	    app->unlock_updates();
         }
 
         void GLFW_callback_drop(
@@ -991,19 +1118,23 @@ namespace GEO {
             Application* app = static_cast<Application*>(
                 glfwGetWindowUserPointer(w)
             );
+	    app->lock_updates();
             app->update();
             app->drop_callback(nb, p);
+	    app->unlock_updates();
         }
 
         void GLFW_callback_char(GLFWwindow* w, unsigned int c) {
             Application* app = static_cast<Application*>(
                 glfwGetWindowUserPointer(w)
             );
+	    app->lock_updates();
             app->update();
             ImGui_ImplGlfw_CharCallback(w, c);
             if(!ImGui::GetIO().WantCaptureKeyboard) {
                 app->char_callback(c);
             }
+	    app->unlock_updates();
         }
 
         void GLFW_callback_key(
@@ -1012,11 +1143,13 @@ namespace GEO {
             Application* app = static_cast<Application*>(
                 glfwGetWindowUserPointer(w)
             );
+            app->lock_updates();
             app->update();
             ImGui_ImplGlfw_KeyCallback(w, key, scancode, action, mods);
             if(!ImGui::GetIO().WantCaptureKeyboard) {
                 app->key_callback(key,scancode,action,mods);
             }
+            app->unlock_updates();
         }
 
         void GLFW_callback_refresh(GLFWwindow* w) {
@@ -1098,8 +1231,11 @@ namespace GEO {
             width_ = w;
             height_ = w;
         }
+	// Seems that using 0,0,width,height as pos,dim does not escape from
+	// fullscreen mode with new GLFw so I shrink 1 pixel.
         glfwSetWindowMonitor(
-            data_->window_, nullptr, 0, 0, int(width_), int(height_), 50
+            data_->window_, nullptr, 1, 1, int(width_-1), int(height_-1),
+	    GLFW_DONT_CARE
         );
         update();
     }

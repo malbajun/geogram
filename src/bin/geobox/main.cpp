@@ -357,7 +357,7 @@ namespace {
                     sz /= 4.0f;
                 }
                 ImGui::Image(
-                    convert_to_ImTextureID(geogram_logo_texture_),
+                    static_cast<ImTextureID>(geogram_logo_texture_),
                     ImVec2(sz, sz)
                 );
                 ImGui::Text(
@@ -1258,7 +1258,7 @@ namespace {
 
             index_t first_v = M.vertices.create_vertices(12);
             for(index_t v=0; v<12; ++v) {
-                Geom::mesh_vertex_ref(M,first_v+v) =
+                M.vertices.point(first_v+v) =
                     vec3(points[3*v], points[3*v+1], points[3*v+2]) ;
             }
 

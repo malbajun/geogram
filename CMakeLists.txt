@@ -2,15 +2,15 @@
 # Geogram/Vorpaline root CMakeList
 ##############################################################################
 
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.5...3.30)
 cmake_policy(SET CMP0048 NEW)
 
 
 ##############################################################################
 set(VORPALINE_VERSION_RC TRUE)
 set(VORPALINE_VERSION_MAJOR 1)
-set(VORPALINE_VERSION_MINOR 9)
-set(VORPALINE_VERSION_PATCH 2)
+set(VORPALINE_VERSION_MINOR 10)
+set(VORPALINE_VERSION_PATCH 0)
 
 set(VORPALINE_VERSION_PLAIN ${VORPALINE_VERSION_MAJOR}.${VORPALINE_VERSION_MINOR}.${VORPALINE_VERSION_PATCH})
 if(VORPALINE_VERSION_RC)
@@ -34,6 +34,9 @@ else()
    set(GEOGRAMGFX_SYSTEM_NAME geogramgfx${VORPALINE_VERSION_MAJOR} CACHE STRING "System name for the project geogram gfx")
 endif()
 
+if(GEOGRAM_FOR_DEBIAN)
+include_directories(SYSTEM /usr/include/lua5.4)
+endif()
 
 # Optional modules
 # (can be overriden in CMakeOptions.txt)
@@ -53,6 +56,7 @@ option(GEOGRAM_USE_SYSTEM_GLFW3 "Use the version of GLFW3 installed in the syste
 option(GEOGRAM_WITH_GARGANTUA "64-bit indices" OFF)
 option(GEOGRAM_WITH_TBB "Use TBB for multi-threading" OFF)
 option(GEOGRAM_WITH_THIRD_PARTIES "Use third party code" ON)
+option(GEOGRAM_FOR_DEBIAN "Build geogram for Debian packaging" OFF)
 include(cmake/geo_detect_platform.cmake)
 endif()
 
@@ -103,7 +107,7 @@ endif()
 # - Makes RPATH of dynamic libraries and executable point to the directory
 #   where libraries are installed.
 
-if(VORPALINE_BUILD_DYNAMIC)
+if(VORPALINE_BUILD_DYNAMIC AND NOT GEOGRAM_FOR_DEBIAN)
 set(CMAKE_MACOSX_RPATH 1)
 set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
 endif()
@@ -115,6 +119,7 @@ set(CMAKE_INSTALL_NAME_DIR "${CMAKE_INSTALL_PREFIX}/lib")
 # also an uninstall target that will be inhibited if there is
 # already one (Geogram's one needs to be first)
 
+if(PROJECT_IS_TOP_LEVEL)
 configure_file(
 "${CMAKE_CURRENT_SOURCE_DIR}/cmake/cmake_uninstall.cmake.in"
 "${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake"
@@ -122,6 +127,7 @@ IMMEDIATE @ONLY)
 
 add_custom_target(uninstall
 COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake)
+endif()
 
 ##############################################################################
 # Geogram/Vorpaline sources

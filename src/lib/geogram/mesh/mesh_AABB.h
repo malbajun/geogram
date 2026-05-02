@@ -49,9 +49,20 @@
 #include <geogram/basic/common.h>
 #include <geogram/mesh/mesh.h>
 #include <geogram/basic/geometry.h>
+#include <geogram/basic/stopwatch.h>
 
 namespace GEO {
 
+    /**
+     * \brief Axis Aligned Bounding Box Tree ordering mode
+     * \details One of
+     *   - AABB_INDIRECT: leave mesh untouched, store order in separate vector
+     *   - AABB_INPLACE: reorder mesh elements in place
+     *   - AABB_NOREORDER: use order of mesh elements (was reordered before)
+     */
+    enum AABBReorderMode {
+	AABB_INPLACE, AABB_INDIRECT, AABB_NOREORDER
+    };
 
     /**
      * \brief Base class for Axis Aligned Bounding Box trees.
@@ -73,9 +84,8 @@ namespace GEO {
             nb_ = nb;
             bboxes_.resize(max_node_index(1, 0, nb) + 1);
             // +1 because size == max_index + 1 !!!
-            init_bboxes_recursive(1, 0, nb_, get_bbox);
+	    init_bboxes_recursive(1, 0, nb_, get_bbox);
         }
-
 
         /**
          * \brief Computes all the elements that have a bbox that
@@ -108,7 +118,7 @@ namespace GEO {
 
             // Leaf case
             if(e == b+1) {
-                action(b);
+                action(element_in_leaf(b));
                 return;
             }
 
@@ -152,20 +162,25 @@ namespace GEO {
 
             // Since we are intersecting the AABBTree with *itself*,
             // we can prune half of the cases by skipping the test
-            // whenever node2's facet index interval is greated than
+            // whenever node2's facet index interval is greater than
             // node1's facet index interval.
             if(e2 <= b1) {
                 return;
             }
 
             // The acceleration is here:
-            if(!bboxes_overlap(bboxes_[node1], bboxes_[node2])) {
+            if(
+		(node1 != node2) &&
+		!bboxes_overlap(bboxes_[node1], bboxes_[node2])
+	    ) {
                 return;
             }
 
             // Simple case: leaf - leaf intersection.
             if(b1 + 1 == e1 && b2 + 1 == e2) {
-                action(b1, b2);
+		if(b1 != b2) {
+		    action(element_in_leaf(b1), element_in_leaf(b2));
+		}
                 return;
             }
 
@@ -187,7 +202,6 @@ namespace GEO {
                 self_intersect_recursive(action, node1_r, m1, e1, node2, b2, e2);
             }
         }
-
 
         /**
          * \brief Computes all the pairs of intersecting elements
@@ -227,7 +241,7 @@ namespace GEO {
 
             // Simple case: leaf - leaf intersection.
             if(b1 + 1 == e1 && b2 + 1 == e2) {
-                action(b1, b2);
+                action(element_in_leaf(b1), element_in_leaf(b2));
                 return;
             }
 
@@ -298,7 +312,7 @@ namespace GEO {
             geo_debug_assert(node_index < bboxes_.size());
             geo_debug_assert(b != e);
             if(b + 1 == e) {
-                get_bbox(bboxes_[node_index], b);
+                get_bbox(bboxes_[node_index], element_in_leaf(b));
                 return;
             }
             index_t m = b + (e - b) / 2;
@@ -313,9 +327,32 @@ namespace GEO {
             bbox_union(bboxes_[node_index], bboxes_[childl], bboxes_[childr]);
         }
 
+	/**
+	 * \brief Tests whether this AABB is indirect or in-place
+	 * \details An AABB can be indirect (stores a permutation in a vector)
+	 *  or in-place (elements are reordered in the mesh for instance).
+	 * \retval true if the AABB is indirect
+	 * \retval false if the AABB uses in-place reordering
+	 */
+	bool indirect() const {
+	    return (reorder_.size() != 0);
+	}
+
+	/**
+	 * \brief Gets the element stored in a leaf node
+	 * \details If the AABB is indirect, looks-up the element in the
+	 *  reorder_ permutation, else returns \p n.
+	 * \param[in] i the leaf index, between 0 and nb elements - 1
+	 * \return the element stored in the leaf node \p n
+	 */
+	index_t element_in_leaf(index_t i) const {
+	    return indirect() ? reorder_[i] : i;
+	}
+
     protected:
         index_t nb_;
         vector<BOX> bboxes_;
+	vector<index_t> reorder_; /**< used if indirect, or unused if in-place */
     };
 
     typedef AABB<Box2d> AABB2d;
@@ -390,8 +427,8 @@ namespace GEO {
         struct Intersection {
             Intersection() :
                 t(Numeric::max_float64()),
-                f(index_t(-1)),
-                i(index_t(-1)), j(index_t(-1)), k(index_t(-1))
+                f(NO_INDEX),
+                i(NO_INDEX), j(NO_INDEX), k(NO_INDEX)
                 {
                 }
             vec3 p;        /**< the intersection. */
@@ -407,33 +444,61 @@ namespace GEO {
          * \brief MeshFacetsAABB constructor.
          * \details Creates an uninitialized MeshFacetsAABB.
          */
-        MeshFacetsAABB();
+        MeshFacetsAABB() {
+	}
+
+        /**
+         * \brief Creates an Axis Aligned Bounding Boxes tree for facets.
+         * \param[in] M the input mesh. It can be modified,
+         *  and will be triangulated (if
+         *  not already a triangular mesh). The facets are
+         *  re-ordered depending on \p reorder_mode
+         * \param[in] reorder_mode one of
+	 *   - AABB_INDIRECT: leave mesh untouched,
+	 *       store order in separate vector
+	 *   - AABB_INPLACE: reorder mesh elements in place
+	 *   - AABB_NOREORDER: use order of mesh elements
+	 *       (the mesh was reordered before, using mesh_reorder())
+         */
+        MeshFacetsAABB(Mesh& M, AABBReorderMode reorder_mode) {
+	    initialize(M, reorder_mode);
+	}
+
+        /**
+         * \brief Creates an Axis Aligned Bounding Boxes tree for facets.
+	 * \details Uses AABB_INDIRECT mode (order stored in separate vector).
+         * \param[in] M a const reference to the input mesh.
+	 */
+	MeshFacetsAABB(const Mesh& M) {
+	    initialize(const_cast<Mesh&>(M), AABB_INDIRECT);
+	}
 
         /**
          * \brief Initializes the Axis Aligned Bounding Boxes tree.
          * \param[in] M the input mesh. It can be modified,
          *  and will be triangulated (if
          *  not already a triangular mesh). The facets are
-         *  re-ordered (using Morton's order, see mesh_reorder()).
-         * \param[in] reorder if not set, Morton re-ordering is
-         *  skipped (but it means that mesh_reorder() was previously
-         *  called else the algorithm will be pretty unefficient).
+         *  re-ordered depending on \p reorder_mode
+         * \param[in] reorder_mode one of
+	 *   - AABB_INDIRECT: leave mesh untouched,
+	 *       store order in separate vector
+	 *   - AABB_INPLACE: reorder mesh elements in place
+	 *   - AABB_NOREORDER: use order of mesh elements
+	 *       (the mesh was reordered before, using mesh_reorder())
          */
-        void initialize(Mesh& M, bool reorder = true);
+        void initialize(Mesh& M, AABBReorderMode reorder_mode = AABB_INDIRECT);
 
+#ifndef GOMGEN
+	[[deprecated("use MeshFacetsAABB(Mesh&,AABBReorderMode) instead")]]
+	MeshFacetsAABB(Mesh& M, bool reorder) {
+	    initialize(M, reorder ? AABB_INPLACE : AABB_NOREORDER);
+	}
 
-        /**
-         * \brief Creates the Axis Aligned Bounding Boxes tree.
-         * \param[in] M the input mesh. It can be modified,
-         *  and will be triangulated (if
-         *  not already a triangular mesh). The facets are
-         *  re-ordered (using Morton's order, see mesh_reorder()).
-         * \param[in] reorder if not set, Morton re-ordering is
-         *  skipped (but it means that mesh_reorder() was previously
-         *  called else the algorithm will be pretty unefficient).
-         */
-        MeshFacetsAABB(Mesh& M, bool reorder = true);
-
+	[[deprecated("use initialize(Mesh&,AABBReorderMode) instead")]]
+	void initialize(Mesh& M, bool reorder) {
+	    initialize(M, reorder ? AABB_INPLACE : AABB_NOREORDER);
+	}
+#endif
         /**
          * \brief Computes all the pairs of intersecting facets.
          * \param[in] action a function that takes two index_t's
@@ -444,11 +509,19 @@ namespace GEO {
         void compute_facet_bbox_intersections(
             std::function<void(index_t, index_t)> action
         ) const {
-            self_intersect_recursive(
-                action,
-                1, 0, mesh_->facets.nb(),
-                1, 0, mesh_->facets.nb()
-            );
+	    if(
+		Process::maximum_concurrent_threads() <= 1 ||
+		mesh_->facets.nb() <= 65536
+	    ) {
+		self_intersect_recursive(
+		    action,
+		    1, 0, mesh_->facets.nb(),
+		    1, 0, mesh_->facets.nb()
+		);
+	    } else {
+		self_bbox_intersections_parallel(action);
+	    }
+
         }
 
         /**
@@ -470,12 +543,18 @@ namespace GEO {
          * \brief Finds the nearest facet from an arbitrary 3d query point.
          * \param[in] p query point
          * \param[out] nearest_point nearest point on the surface
-         * \param[out] sq_dist squared distance between p and the surface.
-         * \return the index of the facet nearest to point p.
+         * \param[out] sq_dist squared distance between p and the surface or
+	 *  or Numeric::max_float64() if mesh has no facet
+         * \return the index of the facet nearest to point p or NO_INDEX if
+	 *  mesh has no facet.
          */
         index_t nearest_facet(
             const vec3& p, vec3& nearest_point, double& sq_dist
         ) const {
+	    if(mesh_->facets.nb() == 0) {
+		sq_dist = Numeric::max_float64();
+		return NO_INDEX;
+	    }
             index_t nearest_facet;
             get_nearest_facet_hint(p, nearest_facet, nearest_point, sq_dist);
             nearest_facet_recursive(
@@ -489,12 +568,43 @@ namespace GEO {
         /**
          * \brief Finds the nearest facet from an arbitrary 3d query point.
          * \param[in] p query point
-         * \return the index of the facet nearest to point p.
+         * \return the index of the facet nearest to point p or NO_INDEX if
+	 *  mesh has no facet.
          */
         index_t nearest_facet(const vec3& p) const {
             vec3 nearest_point;
             double sq_dist;
             return nearest_facet(p, nearest_point, sq_dist);
+        }
+
+
+        /**
+         * \brief Finds the nearest facet from an arbitrary 3d query point taken
+	 *  into account only certain facets
+         * \param[in] p query point
+         * \param[out] nearest_point nearest point on the surface
+         * \param[out] sq_dist squared distance between p and the surface.
+	 * \param[in] filter a function that takes a facet index and that
+	 *  returns true if the facet should be taken into account or false
+	 *  otherwise.
+         * \return the index of the facet nearest to point p.
+         */
+        index_t nearest_facet_filtered(
+            const vec3& p, vec3& nearest_point, double& sq_dist,
+	    std::function<bool(index_t)> filter
+        ) const {
+	    if(mesh_->facets.nb() == 0) {
+		return NO_INDEX;
+	    }
+            index_t nearest_facet = NO_INDEX;
+	    sq_dist = Numeric::max_float64();
+            nearest_facet_recursive_filtered(
+                p,
+                nearest_facet, nearest_point, sq_dist,
+                1, 0, mesh_->facets.nb(),
+		filter
+            );
+            return nearest_facet;
         }
 
         /**
@@ -520,6 +630,12 @@ namespace GEO {
             const vec3& p,
             index_t& nearest_facet, vec3& nearest_point, double& sq_dist
         ) const {
+	    if(mesh_->facets.nb() == 0) {
+		nearest_facet = NO_INDEX;
+		sq_dist = Numeric::max_float64();
+		nearest_point=vec3(0,0,0);
+		return;
+	    }
             if(nearest_facet == NO_FACET) {
                 get_nearest_facet_hint(
                     p, nearest_facet, nearest_point, sq_dist
@@ -559,7 +675,7 @@ namespace GEO {
         bool ray_intersection(
             const Ray& R,
             double tmax = Numeric::max_float64(),
-            index_t ignore_f = index_t(-1)
+            index_t ignore_f = NO_INDEX
         ) const;
 
 
@@ -591,7 +707,7 @@ namespace GEO {
          *  is nearest to the first extremity of the segment.
          * \param[in] q1 , q2 the two extremities of the segment.
          * \param[out] t if there was an intersection, it is t*q2 + (1-t)*q1
-         * \param[out] f the intersected nearest facet or index_t(-1) if there
+         * \param[out] f the intersected nearest facet or NO_INDEX if there
          *  was no intersection.
          * \retval true if there exists at least an intersection
          *  between [q1 , q2] and a facet of the mesh.
@@ -618,6 +734,17 @@ namespace GEO {
             const Ray& R,
             std::function<void(const Intersection&)> action
         ) const;
+
+
+	/**
+	 * \brief Tests whether a closed surface contains a point
+	 * \pre The surface from which the MeshFacetsAABB was constructed
+	 *  is closed
+	 * \param[in] p the point to be tested
+	 * \retval true if the surface contains \p p
+	 * \retval false otherwise
+	 */
+	bool contains(const vec3& p) const;
 
     protected:
 
@@ -660,6 +787,30 @@ namespace GEO {
             const vec3& p,
             index_t& nearest_facet, vec3& nearest_point, double& sq_dist,
             index_t n, index_t b, index_t e
+        ) const;
+
+
+        /**
+         * \brief The recursive function used by the implementation
+         *  of nearest_facet_filtered().
+         *
+         * \param[in] p query point
+         * \param[in,out] nearest_facet the nearest facet so far,
+         * \param[in,out] nearest_point a point in nearest_facet
+         * \param[in,out] sq_dist squared distance between p and nearest_point
+         * \param[in] n index of the current node in the AABB tree
+         * \param[in] b index of the first facet in the subtree under node \p n
+         * \param[in] e one position past the index of the last facet in the
+         *  subtree under node \p n
+	 * \param[in] filter a function that takes a facet index and that
+	 *  returns true if the facet should be taken into account or false
+	 *  otherwise.
+         */
+        void nearest_facet_recursive_filtered(
+            const vec3& p,
+            index_t& nearest_facet, vec3& nearest_point, double& sq_dist,
+            index_t n, index_t b, index_t e,
+	    std::function<bool(index_t)> filter
         ) const;
 
         /**
@@ -721,6 +872,21 @@ namespace GEO {
             index_t n, index_t b, index_t e
         ) const;
 
+
+        /**
+         * \brief Computes all the pairs of intersecting elements
+         *  in parallel.
+         * \param[in] action a function taking as arguments two
+         *  index_t's, invoked of all pairs of elements that have
+         *  overlapping bounding boxes.
+	 * \param[in] concurrent if set, then action can be called simultaneously
+	 *  by concurrent threads, else it is only the determination of
+	 *  overlapping bboxes that is parallelized, then the list of overlapping
+	 *  bboxes is internally memorized for serializing the calls to action.
+	 */
+	void self_bbox_intersections_parallel(
+	    std::function<void(index_t, index_t)> action, bool concurrent=false
+	) const;
     };
 
     /***********************************************************************/
@@ -738,33 +904,63 @@ namespace GEO {
          *  is no containing tetrahedron.
          * \see containing_tet()
          */
-        static const index_t NO_TET = index_t(-1);
+        static constexpr index_t NO_TET = NO_INDEX;
 
         /**
          * \brief MeshCellsAABB constructor.
          * \details Creates an uninitialized MeshCellsAABB.
          */
-        MeshCellsAABB();
+        MeshCellsAABB() {
+	}
 
         /**
-         * \brief Creates the Axis Aligned Bounding Boxes tree.
+         * \brief Creates an Axis Aligned Bounding Boxes tree for mesh cells.
          * \param[in] M the input mesh. It can be modified,
-         *  The cells are re-ordered (using Morton's order, see mesh_reorder()).
-         * \param[in] reorder if not set, Morton re-ordering is
-         *  skipped (but it means that mesh_reorder() was previously
-         *  called else the algorithm will be pretty unefficient).
+         *  The cells are re-ordered depending on \p reorder_mode
+         * \param[in] reorder_mode one of
+	 *   - AABB_INDIRECT: leave mesh untouched,
+	 *       store order in separate vector
+	 *   - AABB_INPLACE: reorder mesh elements in place
+	 *   - AABB_NOREORDER: use order of mesh elements
+	 *       (the mesh was reordered before, using mesh_reorder())
          */
-        MeshCellsAABB(Mesh& M, bool reorder = true);
+        MeshCellsAABB(Mesh& M, AABBReorderMode reorder_mode) {
+	    initialize(M, reorder_mode);
+	}
+
+        /**
+         * \brief Creates an Axis Aligned Bounding Boxes tree for mesh cells.
+	 * \details Uses AABB_INDIRECT mode (order stored in separate vector).
+         * \param[in] M a const reference to the input mesh.
+	 */
+	MeshCellsAABB(const Mesh& M) {
+	    initialize(const_cast<Mesh&>(M), AABB_INDIRECT);
+	}
 
         /**
          * \brief Initializes the Axis Aligned Bounding Boxes tree.
          * \param[in] M the input mesh. It can be modified,
-         *  The cells are re-ordered (using Morton's order, see mesh_reorder()).
-         * \param[in] reorder if not set, Morton re-ordering is
-         *  skipped (but it means that mesh_reorder() was previously
-         *  called else the algorithm will be pretty unefficient).
+         *  The cells are re-ordered depending on \p reorder_mode
+         * \param[in] reorder_mode one of
+	 *   - AABB_INPLACE: reorder mesh elements in place
+	 *   - AABB_INDIRECT: leave mesh untouched,
+	 *       store order in separate vector
+	 *   - AABB_NOREORDER: use order of mesh elements
+	 *       (the mesh was reordered before, using mesh_reorder())
          */
-        void initialize(Mesh& M, bool reorder = true);
+        void initialize(Mesh& M, AABBReorderMode reorder_mode = AABB_INDIRECT);
+
+#ifndef GOMGEN
+	[[deprecated("use MeshCellsAABB(Mesh&,AABBReorderMode) instead")]]
+	MeshCellsAABB(Mesh& M, bool reorder) {
+	    initialize(M, reorder ? AABB_INPLACE : AABB_NOREORDER);
+	}
+
+	[[deprecated("use initialize(Mesh&,AABBReorderMode) instead")]]
+	void initialize(Mesh& M, bool reorder) {
+	    initialize(M, reorder ? AABB_INPLACE : AABB_NOREORDER);
+	}
+#endif
 
         /**
          * \brief Finds the index of a tetrahedron that contains a query point
@@ -902,7 +1098,7 @@ namespace GEO {
 
             // Leaf case
             if(e == b+1) {
-                action(b);
+                action(element_in_leaf(b));
                 return;
             }
 
@@ -931,7 +1127,7 @@ namespace GEO {
          *  is no containing tetrahedron.
          * \see containing_tet()
          */
-        static const index_t NO_TRIANGLE = index_t(-1);
+        static constexpr index_t NO_TRIANGLE = NO_INDEX;
 
         /**
          * \brief MeshFacetsAABB2d constructor.
@@ -1095,7 +1291,7 @@ namespace GEO {
 
             // Leaf case
             if(e == b+1) {
-                action(b);
+                action(element_in_leaf(b));
                 return;
             }
 

@@ -43,7 +43,16 @@
 #include <geogram/basic/common.h>
 #include <geogram/basic/range.h>
 #include <geogram/basic/attributes.h>
+#include <geogram/basic/vector_attribute.h>
 #include <geogram/basic/geometry.h>
+#include <tuple>
+
+// GOMGEN (Graphite's pre-processor) does not understand
+// modern C++ (but it is not a big drama since it is just
+// used to generate the GUI).
+#ifdef GOMGEN
+#define MESH_NO_SYNTAXIC_SUGAR
+#endif
 
 /**
  * \file geogram/mesh/mesh.h
@@ -367,6 +376,19 @@ namespace GEO {
             return result;
         }
 
+	/**
+	 * \brief Creates a vertex from a 3d point
+	 * \param[in] p a const reference to the 3d point
+	 * \return the index of the created vertex
+	 * \pre dimension() == 3
+	 */
+	template <index_t DIM> index_t create_vertex(
+	    const vecng<DIM,double>& p
+	) {
+	    geo_debug_assert(dimension() == DIM);
+	    return create_vertex(p.data());
+	}
+
         /**
          * \brief Creates a contiguous chunk of vertices.
          * \param[in] nb number of sub-elements to create
@@ -479,11 +501,13 @@ namespace GEO {
          *  that corresponds to the vertex
          * \pre !single_precision()
          */
-        vec3& point(index_t v) {
+        template<index_t DIM=3> vecng<DIM,double>& point(index_t v) {
             geo_debug_assert(v < nb());
             geo_debug_assert(!single_precision());
-            geo_debug_assert(dimension() >= 3);
-            return *(vec3*)(&point_[v*point_.dimension()]);
+            geo_debug_assert(dimension() >= DIM);
+            return Memory::pointer_as_reference<vecng<DIM,double>>(
+		&point_[v*point_.dimension()]
+	    );
         }
 
         /**
@@ -493,11 +517,15 @@ namespace GEO {
          *  that corresponds to the vertex
          * \pre !single_precision()
          */
-        const vec3& point(index_t v) const {
+        template <index_t DIM=3> const vecng<DIM,double>& point(
+	    index_t v
+	) const {
             geo_debug_assert(v < nb());
             geo_debug_assert(!single_precision());
-            geo_debug_assert(dimension() >= 3);
-            return *(const vec3*)(&point_[v*point_.dimension()]);
+            geo_debug_assert(dimension() >= DIM);
+            return Memory::pointer_as_reference<vecng<DIM,double>>(
+		&point_[v*point_.dimension()]
+	    );
         }
 
         /**
@@ -552,6 +580,42 @@ namespace GEO {
         );
 
         void pop() override;
+
+#ifndef MESH_NO_SYNTAXIC_SUGAR
+
+	/**
+	 * \brief Gets the 3D points of the mesh as an iterable sequence
+	 * \details Each point is returned as a const reference
+	 */
+	template <index_t DIM = 3> auto points() const {
+	    typedef vecng<DIM,double> vecn;
+	    return transform_range_ref(
+		index_range(0, nb()),
+		[this](index_t v)->const vecn& {
+		    // for MSVC that cannot chose among const/non-const versions
+		    return Memory::pointer_as_reference<vecn>(point_ptr(v));
+		    // return point<DIM>(v); // MSVC does not understand this one
+		}
+	    );
+	}
+
+	/**
+	 * \brief Gets the 3D points of the mesh as an iterable sequence
+	 * \details Each point is returned as a modifiable reference
+	 */
+	template <index_t DIM = 3> auto points() {
+	    typedef vecng<DIM,double> vecn;
+	    return transform_range_ref(
+		index_range(0, nb()),
+		[this](index_t v)->vecn& {
+		    // for MSVC that cannot chose among const/non-const versions
+		    return Memory::pointer_as_reference<vecn>(point_ptr(v));
+		    // return point<DIM>(v); //MSVC does not understand this one
+		}
+	    );
+	}
+
+#endif
 
     protected:
 
@@ -716,6 +780,12 @@ namespace GEO {
 
         void pop() override;
 
+	/**
+	 * \brief Swaps both extremities of an edge
+	 * \param[in] e the edge
+	 */
+	void flip(index_t e);
+
     protected:
         void clear_store(
             bool keep_attributes, bool keep_memory = false
@@ -816,11 +886,24 @@ namespace GEO {
          * \param[in] f the facet
          * \return a pointer to the first corner of the facet
          */
+        index_t* corners_begin_ptr(index_t f) {
+            geo_debug_assert(!is_simplicial_);
+            geo_debug_assert(f < nb());
+            return &facet_ptr_[f];
+        }
+
+        /**
+         * \brief Gets a pointer to the first element for iterating over
+         *  the corners of a facet
+         * \param[in] f the facet
+         * \return a const pointer to the first corner of the facet
+         */
         const index_t* corners_begin_ptr(index_t f) const {
             geo_debug_assert(!is_simplicial_);
             geo_debug_assert(f < nb());
             return &facet_ptr_[f];
         }
+
 
     protected:
         void clear_store(
@@ -874,7 +957,7 @@ namespace GEO {
          * \return the vertex that corner \p c is incident to
          */
         index_t vertex(index_t c) const {
-            geo_assert(c < nb());
+            geo_debug_assert(c < nb());
             return corner_vertex_[c];
         }
 
@@ -885,7 +968,7 @@ namespace GEO {
          *  NO_FACET if \p c is on the border
          */
         index_t adjacent_facet(index_t c) const {
-            geo_assert(c < nb());
+            geo_debug_assert(c < nb());
             return corner_adjacent_facet_[c];
         }
 
@@ -897,7 +980,7 @@ namespace GEO {
          *  that corner \p is adjacent to.
          */
         const index_t* adjacent_facet_ptr(index_t c) const {
-            geo_assert(c < nb());
+            geo_debug_assert(c < nb());
             return &corner_adjacent_facet_[c];
         }
 
@@ -910,7 +993,7 @@ namespace GEO {
          *  that corner \p is adjacent to.
          */
         index_t* adjacent_facet_ptr(index_t c) {
-            geo_assert(c < nb());
+            geo_debug_assert(c < nb());
             return &corner_adjacent_facet_[c];
         }
 
@@ -976,6 +1059,31 @@ namespace GEO {
             geo_debug_assert(c < nb());
             return &(corner_vertex_[c]);
         }
+
+	/**
+	 * \brief Gets the point associated with a corner
+	 * \param[in] c the corner
+	 * \return a reference to the DIM-d point associated with the corner
+	 * \pre vertices.dimension() >= DIM
+	 */
+	template <index_t DIM=3> vecng<DIM,double>& point(index_t c) {
+	    geo_debug_assert(c < nb());
+	    return vertices_.point<DIM>(vertex(c));
+	}
+
+	/**
+	 * \brief Gets the point associated with a corner
+	 * \param[in] c the corner
+	 * \return const a reference to the DIM-d point associated with
+	 *  the corner
+	 * \pre vertices.dimension() >= DIM
+	 */
+	template <index_t DIM=3> const vecng<DIM,double>& point(
+	    index_t c
+	) const {
+	    geo_debug_assert(c < nb());
+	    return vertices_.point(vertex(c));
+	}
 
     protected:
         void clear_store(
@@ -1054,6 +1162,35 @@ namespace GEO {
         index_t vertex(index_t f, index_t lv) const {
             return facet_corners_.vertex(corner(f,lv));
         }
+
+
+        /**
+         * \brief Gets a point by facet and local vertex index
+         * \param[in] f the facet
+         * \param[in] lv the local vertex index in \p f
+         * \return a const reference to the point corresponding to
+	 *   the \p lv%th vertex of facet \p f
+         * \pre lv < nb_vertices(f)
+         */
+	template <index_t DIM=3> const vecng<DIM,double>& point(
+	    index_t f, index_t lv
+	) const {
+	    return vertices_.point<DIM>(vertex(f,lv));
+	}
+
+        /**
+         * \brief Gets a point by facet and local vertex index
+         * \param[in] f the facet
+         * \param[in] lv the local vertex index in \p f
+         * \return a reference to the point corresponding to
+	 *   the \p lv%th vertex of facet \p f
+         * \pre lv < nb_vertices(f)
+         */
+	template <index_t DIM=3> vecng<DIM,double>& point(
+	    index_t f, index_t lv
+	) {
+	    return vertices_.point<DIM>(vertex(f,lv));
+	}
 
         /**
          * \brief Sets a vertex by facet and local vertex index
@@ -1169,7 +1306,7 @@ namespace GEO {
          * \return the edge le such that vertex(f,le) = v1 and
          *   vertex(f, (le+1)%nb_vertices(f)) == v2
          */
-        index_t find_edge(index_t f, index_t v1, index_t v2) {
+        index_t find_edge(index_t f, index_t v1, index_t v2) const {
             for(index_t c1 = corners_begin(f); c1 != corners_end(f); ++c1) {
                 index_t c2 = next_corner_around_facet(f,c1);
                 if(
@@ -1425,6 +1562,146 @@ namespace GEO {
             );
         }
 
+#ifndef MESH_NO_SYNTAXIC_SUGAR
+
+        /**
+         * \brief Gets the vertices of a facet.
+         * \param[in] f the index of the facet.
+         * \return a range with all the vertices indices of the facet.
+         */
+	auto vertices(index_t f) const {
+	    geo_debug_assert(f < nb());
+	    return transform_range(
+		corners(f), [this](index_t c)->index_t {
+		    return facet_corners_.vertex(c);
+		}
+	    );
+	}
+
+        /**
+         * \brief Gets the facets adjacent to a given facet.
+         * \param[in] f the index of the facet.
+         * \return a range with all the indices of the facets adjacent to this
+	 *  facet. It will output exactly one item per edge of the facet. Edges
+	 *  on the border will output NO_INDEX (no adjacent facet).
+         */
+	auto adjacent(index_t f) const {
+	    geo_debug_assert(f < nb());
+	    return transform_range(
+		corners(f), [this](index_t c)->index_t {
+		    return facet_corners_.adjacent_facet(c);
+		}
+	    );
+	}
+
+	/**
+	 * \brief Gets the points associated with the vertices of a facet.
+         * \param[in] f the index of the facet.
+         * \return a range with the points that correspond to the vertices of
+	 *  the facet, returned as const references.
+	 */
+	template <index_t DIM=3> auto points(index_t f) const {
+	    geo_debug_assert(f < nb());
+	    typedef vecng<DIM,double> vecn;
+	    return transform_range_ref(
+		corners(f), [this](index_t c)->const vecn& {
+		    index_t v = facet_corners_.vertex(c);
+		    return vertices_.point<DIM>(v);
+		}
+	    );
+	}
+
+	/**
+	 * \brief Gets the points associated with the vertices of a facet.
+         * \param[in] f the index of the facet.
+         * \return a range with the points that correspond to the vertices of
+	 *  the facet, returned as modifiable references.
+	 */
+	template <index_t DIM=3> auto points(index_t f) {
+	    geo_debug_assert(f < nb());
+	    typedef vecng<DIM,double> vecn;
+	    return transform_range_ref(
+		corners(f), [this](index_t c)->vecn& {
+		    index_t v = facet_corners_.vertex(c);
+		    return vertices_.point<DIM>(v);
+		}
+	    );
+	}
+
+        /**
+         * \brief Decomposes a facet into triangles
+         * \param[in] f the index of the facet.
+         * \return a range with a decomposition of the facet into triangles,
+	 *  returned as std::tuple<index_t, index_t, index_t>
+         */
+        auto triangles(index_t f) const {
+            geo_debug_assert(f < nb());
+	    index_t v0 = facet_corners_.vertex(corners_begin(f));
+            return transform_range(
+		index_range(
+		    index_as_iterator(corners_begin(f)+1),
+		    index_as_iterator(corners_end(f)-1)
+		),
+		[this,v0](index_t c)->std::tuple<index_t, index_t, index_t> {
+		    return std::make_tuple(
+			v0,
+			facet_corners_.vertex(c),
+			facet_corners_.vertex(c+1)
+		    );
+		}
+	    );
+        }
+
+        /**
+         * \brief Decomposes a facet into triangles
+         * \param[in] f the index of the facet.
+         * \return a range with a decomposition of the facet into triangles,
+	 *  returned as std::tuple<const vecn&, const vecn&, const vecn&>
+	 *  where vecn can be vec2, vec3, vec4 ... depending on the DIM
+	 *  template argument
+         */
+	template <index_t DIM=3> auto triangle_points(index_t f) const {
+            geo_debug_assert(f < nb());
+	    typedef vecng<DIM,double> vecn;
+            return transform_range(
+		triangles(f),
+		[this](std::tuple<index_t, index_t, index_t> T)
+		->std::tuple<const vecn&, const vecn&, const vecn&> {
+		    return std::tuple<const vecn&, const vecn&, const vecn&>(
+			vertices_.point<DIM>(std::get<0>(T)),
+			vertices_.point<DIM>(std::get<1>(T)),
+			vertices_.point<DIM>(std::get<2>(T))
+		    );
+		}
+	    );
+        }
+
+        /**
+         * \brief Decomposes a facet into triangles
+         * \param[in] f the index of the facet.
+         * \return a range with a decomposition of the facet into triangles,
+	 *  returned as std::tuple<vecn&, vecn&, vecn&>
+	 *  where vecn can be vec2, vec3, vec4 ... depending on the DIM
+	 *  template argument
+         */
+        template <index_t DIM=3> auto triangle_points(index_t f) {
+            geo_debug_assert(f < nb());
+	    typedef vecng<DIM,double> vecn;
+            return transform_range(
+		triangles(f),
+		[this](std::tuple<index_t, index_t, index_t> T)
+		->std::tuple<vecn&, vecn&, vecn&> {
+		    return std::tuple<vecn&, vecn&, vecn&>(
+			vertices_.point(std::get<0>(T)),
+			vertices_.point(std::get<1>(T)),
+			vertices_.point(std::get<2>(T))
+		    );
+		}
+	    );
+        }
+
+#endif
+
     protected:
 
         /**
@@ -1569,15 +1846,7 @@ namespace GEO {
          * \param[in] c a cell, in 0..nb()-1
          * \return the descriptor of cell \p c
          */
-        const CellDescriptor& descriptor(index_t c) const {
-            geo_debug_assert(c < nb());
-            return is_simplicial_ ? MeshCellDescriptors::tet_descriptor :
-                *(
-                    MeshCellDescriptors::cell_type_to_cell_descriptor[
-                        cell_type_[c]
-                    ]
-                );
-        }
+        const CellDescriptor& descriptor(index_t c) const;
 
         /**
          * \brief Gets a descriptor by cell type
@@ -1590,10 +1859,7 @@ namespace GEO {
          */
         static const CellDescriptor& cell_type_to_cell_descriptor(
             MeshCellType t
-        ) {
-            geo_debug_assert(t < GEO::MESH_NB_CELL_TYPES);
-            return *(MeshCellDescriptors::cell_type_to_cell_descriptor[t]);
-        }
+        );
 
         /**
          * \brief Gets the number of corners of a cell
@@ -1696,6 +1962,51 @@ namespace GEO {
             return descriptor(c).nb_edges;
         }
 
+        /**
+         * \brief Gets a pointer to a cell pointer index by cell index
+         * \param[in] c cell index
+         * \return a pointer to the cell pointer index
+         * \note Normal uses do not call this function
+         */
+	index_t* cell_ptr_ptr(index_t c) {
+	    geo_debug_assert(!is_simplicial_);
+	    return &cell_ptr_[c];
+	}
+
+        /**
+         * \brief Gets a pointer to a cell pointer index by cell index
+         * \param[in] c cell index
+         * \return a pointer to the cell pointer index
+         * \note Normal uses do not call this function
+         */
+	const index_t* cell_ptr_ptr(index_t c) const {
+	    geo_debug_assert(!is_simplicial_);
+	    return &cell_ptr_[c];
+	}
+
+        /**
+         * \brief Gets a pointer to a cell type by cell index
+         * \param[in] c cell index
+         * \return a pointer to the cell type
+         * \note Normal uses do not call this function
+         */
+	Numeric::uint8* cell_type_ptr(index_t c) {
+	    geo_debug_assert(!is_simplicial_);
+	    return &cell_type_[c];
+	}
+
+        /**
+         * \brief Gets a pointer to a cell type by cell index
+         * \param[in] c cell index
+         * \return a const pointer to the cell type
+         * \note Normal uses do not call this function
+         */
+	const Numeric::uint8* cell_type_ptr(index_t c) const {
+	    geo_debug_assert(!is_simplicial_);
+	    return &cell_type_[c];
+	}
+
+
     protected:
         void clear_store(
             bool keep_attributes, bool keep_memory = false
@@ -1756,7 +2067,7 @@ namespace GEO {
          * \return the vertex that corner \p c is incident to
          */
         index_t vertex(index_t c) const {
-            geo_assert(c < nb());
+            geo_debug_assert(c < nb());
             return corner_vertex_[c];
         }
 
@@ -1794,6 +2105,31 @@ namespace GEO {
             geo_debug_assert(c < nb());
             return &(corner_vertex_[c]);
         }
+
+	/**
+	 * \brief Gets the point associated with a corner
+	 * \param[in] c the corner
+	 * \return a reference to the DIM-d point associated with the corner
+	 * \pre vertices.dimension() >= DIM
+	 */
+	template <index_t DIM=3> vecng<DIM,double>& point(index_t c) {
+	    geo_debug_assert(c < nb());
+	    return vertices_.point<DIM>(vertex(c));
+	}
+
+	/**
+	 * \brief Gets the point associated with a corner
+	 * \param[in] c the corner
+	 * \return const a reference to the DIM-d point associated with
+	 *  the corner
+	 * \pre vertices.dimension() >= DIM
+	 */
+	template <index_t DIM=3> const vecng<DIM,double>& point(
+	    index_t c
+	) const {
+	    geo_debug_assert(c < nb());
+	    return vertices_.point(vertex(c));
+	}
 
     protected:
         void clear_store(
@@ -1851,7 +2187,7 @@ namespace GEO {
          *  is on the border
          */
         index_t adjacent_cell(index_t f) const {
-            geo_assert(f < nb());
+            geo_debug_assert(f < nb());
             return adjacent_cell_[f];
         }
 
@@ -1875,7 +2211,7 @@ namespace GEO {
          *  or NO_FACET if \p f is on the border
          */
         const index_t* adjacent_cell_ptr(index_t f) const {
-            geo_assert(f < nb());
+            geo_debug_assert(f < nb());
             return &adjacent_cell_[f];
         }
 
@@ -1886,7 +2222,7 @@ namespace GEO {
          *  or NO_FACET if \p f is on the border
          */
         index_t* adjacent_cell_ptr(index_t f) {
-            geo_assert(f < nb());
+            geo_debug_assert(f < nb());
             return &adjacent_cell_[f];
         }
 
@@ -1968,6 +2304,34 @@ namespace GEO {
         void set_vertex(index_t c, index_t lv, index_t v) {
             cell_corners_.set_vertex(corner(c,lv),v);
         }
+
+        /**
+         * \brief Gets a point by cell and local vertex index
+         * \param[in] c the cell
+         * \param[in] lv the local vertex index in \p c
+         * \return a const reference to the point corresponding to
+	 *   the \p lv%th vertex of cell \p c
+         * \pre lv < nb_vertices(c)
+         */
+	template <index_t DIM=3> const vecng<DIM,double>& point(
+	    index_t c, index_t lv
+	) const {
+	    return vertices_.point<DIM>(vertex(c,lv));
+	}
+
+        /**
+         * \brief Gets a point by cell and local vertex index
+         * \param[in] c the cell
+         * \param[in] lv the local vertex index in \p c
+         * \return a reference to the point corresponding to
+	 *   the \p lv%th vertex of cell \p c
+         * \pre lv < nb_vertices(c)
+         */
+	template <index_t DIM=3> vecng<DIM,double>& point(
+	    index_t c, index_t lv
+	) {
+	    return vertices_.point<DIM>(vertex(c,lv));
+	}
 
         /**
          * \brief Gets a cell adjacent to another one by local facet index
@@ -2073,6 +2437,73 @@ namespace GEO {
                 index_as_iterator(corners_end(c))
             );
         }
+
+        /**
+         * \brief Gets the facets of a cell.
+         * \param[in] c the index of the cell.
+         * \return a range with all the global indices of the cell facets.
+         */
+        index_range facets(index_t c) const {
+            geo_debug_assert(c < nb());
+            return index_range(
+                index_as_iterator(facets_begin(c)),
+                index_as_iterator(facets_end(c))
+            );
+        }
+
+#ifndef MESH_NO_SYNTAXIC_SUGAR
+
+	/**
+	 * \brief Gets the points associated with the vertices of a cell.
+         * \param[in] cell the index of the cell.
+         * \return a range with the points that correspond to the vertices of
+	 *  the cell, returned as const references.
+	 */
+	template <index_t DIM=3> auto points(index_t cell) const {
+	    geo_debug_assert(cell < nb());
+	    typedef vecng<DIM,double> vecn;
+	    return transform_range_ref(
+		corners(cell), [this](index_t c)->const vecn& {
+		    index_t v = cell_corners_.vertex(c);
+		    return vertices_.point<DIM>(v);
+		}
+	    );
+	}
+
+	/**
+	 * \brief Gets the points associated with the vertices of a cell.
+         * \param[in] cell the index of the cell.
+         * \return a range with the points that correspond to the vertices of
+	 *  the cell, returned as modifiable references.
+	 */
+	template <index_t DIM=3> auto points(index_t cell) {
+	    geo_debug_assert(cell < nb());
+	    typedef vecng<DIM,double> vecn;
+	    return transform_range_ref(
+		corners(cell), [this](index_t c)->vecn& {
+		    index_t v = cell_corners_.vertex(c);
+		    return vertices_.point<DIM>(v);
+		}
+	    );
+	}
+
+        /**
+         * \brief Gets the cells adjacent to a given cell.
+         * \param[in] c the index of the cell.
+         * \return a range with all the indices of the cels adjacent to this
+	 *  cell. It will output exactly one item per facet of the cell. Facets
+	 *  on the border will output NO_INDEX (no adjacent cell).
+         */
+	auto adjacent(index_t c) const {
+	    geo_debug_assert(c < nb());
+	    return transform_range(
+		facets(c), [this](index_t f)->index_t {
+		    return cell_facets_.adjacent_cell(f);
+		}
+	    );
+	}
+
+#endif
 
         void clear(
             bool keep_attributes=true, bool keep_memory=false
@@ -2752,6 +3183,8 @@ namespace GEO {
 
     /**
      * \brief Copies a mesh onto this one
+     * \details All attributes of this mesh are deleted, and
+     *   Attribute instances connected to this mesh are unbound.
      * \param[in] rhs a const reference to the mesh to be copied
      * \param[in] copy_attributes if true, all the attributes are
      *   copied.
@@ -2883,7 +3316,6 @@ namespace GEO {
         const MeshSubElementsStore& subelements
     ) const;
 
-    private:
     /**
      * \brief Forbids copy.
      * \details This is to make sure that client code does
@@ -2891,7 +3323,7 @@ namespace GEO {
      *   instance by passing it by-value to a function).
      *   Use copy() instead.
      */
-    Mesh(const Mesh& rhs);
+    Mesh(const Mesh& rhs) = delete;
 
     /**
      * \brief Forbids copy.
@@ -2900,7 +3332,7 @@ namespace GEO {
      *   instance by passing it by-value to a function).
      *   Use copy() instead.
      */
-    const Mesh& operator=(const Mesh& rhs);
+    const Mesh& operator=(const Mesh& rhs) = delete;
     };
 
     /*************************************************************************/

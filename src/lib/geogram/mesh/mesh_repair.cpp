@@ -49,6 +49,7 @@
 #include <geogram/basic/command_line.h>
 #include <geogram/basic/argused.h>
 #include <geogram/basic/algorithm.h>
+
 #include <stack>
 #include <queue>
 
@@ -94,8 +95,9 @@ namespace {
      * representation (used to detect duplicated facets).
      * \param[in] M the mesh that the facet belongs to
      * \param[in] f the index of the facet in \p M
+     * \return true if the facet was flipped, false otherwise
      */
-    void normalize_facet_vertices_order(Mesh& M, index_t f) {
+    bool normalize_facet_vertices_order(Mesh& M, index_t f) {
         index_t d = M.facets.nb_vertices(f);
 
         // Step 1: corner-to-vertex connections
@@ -170,6 +172,7 @@ namespace {
         }
         geo_assert(P[d-1]     == d-1);
         geo_assert(P_inv[d-1] == d-1);
+	return !direct;
     }
 
     /**
@@ -264,7 +267,7 @@ namespace {
      * \param[in] f a facet index in \p M
      * \param[out] new_polygon on exit, where to append the
      *              non-duplicated vertices of facet \p f
-     *              and a terminal index_t(-1)
+     *              and a terminal NO_INDEX
      * \retval true if the facet has three non-duplicated
      *               vertices and more
      * \retval false otherwise
@@ -272,7 +275,7 @@ namespace {
     bool find_facet_non_duplicated_vertices(
         const Mesh& M, index_t f, vector<index_t>& new_polygon
     ) {
-        index_t first_corner = index_t(-1);
+        index_t first_corner = NO_INDEX;
 
         // Find the first vertex that is different from
         // its predecessor around the facet.
@@ -286,12 +289,12 @@ namespace {
 
         // All the vertices may be identical (if the facet
         // is completely degenerate).
-        if(first_corner == index_t(-1)) {
+        if(first_corner == NO_INDEX) {
             return false;
         }
 
         index_t c = first_corner;
-        index_t cur_v = index_t(-1);
+        index_t cur_v = NO_INDEX;
         index_t nb = 0;
 
         do {
@@ -303,7 +306,7 @@ namespace {
             }
             c = M.facets.next_corner_around_facet(f,c);
         } while(c != first_corner);
-        new_polygon.push_back(index_t(-1));
+        new_polygon.push_back(NO_INDEX);
 
         //   If there were only 2 non-duplicated vertices, then
         // the facet is degenerate and is "rolled back" (we do
@@ -332,7 +335,7 @@ namespace {
      * \param[out] new_polygons if non zero, on exit contains the
      *  polygonal facets to be created to replace the input polygonal
      *  facets that have duplicated vertices. Each individual facet
-     *  is terminated by index_t(-1)
+     *  is terminated by NO_INDEX
      */
     void detect_bad_facets(
         Mesh& M, bool check_duplicates, vector<index_t>& remove_f,
@@ -343,6 +346,7 @@ namespace {
         index_t nb_duplicates = 0;
         index_t nb_degenerate = 0;
         if(check_duplicates) {
+	    vector<char> flipped(M.facets.nb());
 
             // Used by boolean operations
             Attribute<index_t> operand_bit;
@@ -351,10 +355,22 @@ namespace {
             );
 
             // Reorder vertices around each facet to make
-            // it easier to compare two facets.
-            for(index_t f: M.facets) {
-                normalize_facet_vertices_order(M, f);
-            }
+            // it easier to compare two facets, and memorize
+	    // initial facet orientation.
+
+	    if(M.facets.nb() > 65535) { // Do that in parallel if mesh is large
+		parallel_for(
+		    0, M.facets.nb(),
+		    [&](index_t f) {
+			flipped[f] = normalize_facet_vertices_order(M, f);
+		    }
+		);
+	    } else {
+		for(index_t f: M.facets) {
+		    flipped[f] = normalize_facet_vertices_order(M, f);
+		}
+	    }
+
             // Indirect-sort the facets in lexicographic
             // order.
             vector<index_t> f_sort(M.facets.nb());
@@ -363,6 +379,7 @@ namespace {
             }
             CompareFacets compare_facets(M);
             GEO::sort(f_sort.begin(), f_sort.end(), compare_facets);
+
             // Now f_sort[0] ... fsort[nb_facets-1] contains the indices
             // of the sorted facets. This ensures that the indices of the
             // facets with the same vertices (i.e. duplicated facets)
@@ -395,6 +412,13 @@ namespace {
                 }
                 if1 = if2;
             }
+
+	    // Restore initial facets orientation
+	    for(index_t f: M.facets) {
+		if(flipped[f]) {
+		    M.facets.flip(f);
+		}
+	    }
         }
 
         // Now, we tag the degenerate facets as 'to be removed'. A
@@ -1058,7 +1082,9 @@ namespace GEO {
             }
         }
 
-        orient_normals(M);
+	if(M.vertices.dimension() >= 3) {
+	    orient_normals(M);
+	}
     }
 
     void mesh_postprocess_RDT(
@@ -1208,7 +1234,7 @@ namespace GEO {
         }
         M.vertices.delete_elements(old2new);
         for(index_t c: M.facet_corners) {
-            M.facet_corners.set_adjacent_facet(c, index_t(-1));
+            M.facet_corners.set_adjacent_facet(c, NO_INDEX);
         }
     }
 
@@ -1231,7 +1257,7 @@ namespace GEO {
             index_t b=0;
             index_t e=0;
             while(b < new_polygons.size()) {
-                while(new_polygons[e] != index_t(-1)) {
+                while(new_polygons[e] != NO_INDEX) {
                     ++e;
                 }
                 index_t new_f = M.facets.create_polygon(e-b);
@@ -1250,7 +1276,7 @@ namespace GEO {
             M.facets.delete_elements(remove_f);
         }
         for(index_t c: M.facet_corners) {
-            M.facet_corners.set_adjacent_facet(c, index_t(-1));
+            M.facet_corners.set_adjacent_facet(c, NO_INDEX);
         }
     }
 

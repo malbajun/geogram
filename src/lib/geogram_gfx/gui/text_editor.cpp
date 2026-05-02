@@ -39,6 +39,7 @@
 
 #include <geogram_gfx/gui/text_editor.h>
 #include <geogram_gfx/gui/application.h>
+#include <geogram_gfx/imgui_ext/imgui_ext.h>
 #include <geogram/basic/string.h>
 #include <fstream>
 
@@ -47,11 +48,9 @@ namespace GEO {
     TextEditor::TextEditor(bool* visible) : visible_(visible) {
         impl_.SetText("\n");
         impl_.SetCursorPosition(
-            ::TextEditor::Coordinates(0,0)
+            ::TextEditor::CursorPosition(0,0)
         );
-        impl_.SetLanguageDefinition(
-            ::TextEditor::LanguageDefinition::Lua()
-        );
+        impl_.SetLanguage(::TextEditor::Language::Lua());
         impl_.SetPalette(::TextEditor::GetDarkPalette());
         fixed_layout_ = true;
     }
@@ -102,7 +101,7 @@ namespace GEO {
         }
         impl_.SetText(text);
         impl_.SetCursorPosition(
-            ::TextEditor::Coordinates(0,0)
+            ::TextEditor::CursorPosition(0,0)
         );
     }
 
@@ -114,14 +113,14 @@ namespace GEO {
     void TextEditor::clear() {
         impl_.SetText("\n");
         impl_.SetCursorPosition(
-            ::TextEditor::Coordinates(0,0)
+            ::TextEditor::CursorPosition(0,0)
         );
     }
 
     void TextEditor::load_data(const char* data) {
         impl_.SetText(data);
         impl_.SetCursorPosition(
-            ::TextEditor::Coordinates(0,0)
+            ::TextEditor::CursorPosition(0,0)
         );
     }
 

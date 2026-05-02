@@ -81,17 +81,9 @@ namespace GEO {
 
         vec3 mesh_facet_normal(const Mesh& M, index_t f) {
             vec3 result(0.0, 0.0, 0.0);
-            index_t c1 = M.facets.corners_begin(f);
-            index_t v1 = M.facet_corners.vertex(c1);
-            const vec3& p1 = mesh_vertex(M, v1);
-            for(index_t c2=c1+1; c2<M.facets.corners_end(f); ++c2) {
-                index_t c3 = M.facets.next_corner_around_facet(f,c2);
-                index_t v2 = M.facet_corners.vertex(c2);
-                index_t v3 = M.facet_corners.vertex(c3);
-                const vec3& p2 = mesh_vertex(M, v2);
-                const vec3& p3 = mesh_vertex(M, v3);
-                result += cross(p2 - p1, p3 - p1);
-            }
+	    for(auto [p1, p2, p3]: M.facets.triangle_points(f)) {
+		result += cross(p2 - p1, p3 - p1);
+	    }
             return result;
         }
 
@@ -138,24 +130,11 @@ namespace GEO {
         }
 
         double GEOGRAM_API mesh_enclosed_volume(const Mesh& M) {
-            // TODO: direct formula, without using origin
-            static double origin[3] = {0.0, 0.0, 0.0};
             double result = 0.0;
             for(index_t f: M.facets) {
-                const double* p0 = M.vertices.point_ptr(
-                    M.facet_corners.vertex(M.facets.corners_begin(f))
-                );
-                for(
-                    index_t i = M.facets.corners_begin(f) + 1;
-                    i + 1 < M.facets.corners_end(f); i++
-                ) {
-                    const double* p1 = M.vertices.point_ptr(
-                        M.facet_corners.vertex(i));
-                    const double* p2 = M.vertices.point_ptr(
-                        M.facet_corners.vertex(i+1));
-
-                    result += GEO::Geom::tetra_signed_volume(origin, p0, p1, p2);
-                }
+		for(auto [ p1, p2, p3 ] : M.facets.triangle_points(f)) {
+		    result += dot(p1,cross(p2,p3)) / 6.0;
+		}
             }
             return ::fabs(result);
         }
@@ -207,8 +186,8 @@ namespace GEO {
                             p[v1] += a * Geom::mesh_vertex_normal(M, v2);
                             p[v2] += a * Geom::mesh_vertex_normal(M, v1);
                         } else {
-                            p[v1] += a * Geom::mesh_vertex(M, v2);
-                            p[v2] += a * Geom::mesh_vertex(M, v1);
+                            p[v1] += a * M.vertices.point(v2);
+                            p[v2] += a * M.vertices.point(v1);
                         }
                     }
                 }
@@ -220,7 +199,7 @@ namespace GEO {
                         Geom::mesh_vertex_normal_ref(M,v) = (1.0 / l) * p[v];
                     }
                 } else {
-                    Geom::mesh_vertex_ref(M, v) = 1.0 / c[v] * p[v];
+		    M.vertices.point(v) = 1.0 / c[v] * p[v];
                 }
             }
         }
@@ -235,8 +214,7 @@ namespace GEO {
             xyzmin[c] = Numeric::max_float64();
             xyzmax[c] = Numeric::min_float64();
         }
-        for(index_t v: M.vertices) {
-            const double* p = M.vertices.point_ptr(v);
+        for(const vec3& p: M.vertices.points()) {
             for(index_t c = 0; c < 3; c++) {
                 xyzmin[c] = std::min(xyzmin[c], p[c]);
                 xyzmax[c] = std::max(xyzmax[c], p[c]);
@@ -356,10 +334,10 @@ namespace GEO {
 
         //   Easy case: tetrahedra.
         if(M.cells.type(c) == MESH_TET) {
-            const double* p0 = M.vertices.point_ptr(M.cells.vertex(c,0));
-            const double* p1 = M.vertices.point_ptr(M.cells.vertex(c,1));
-            const double* p2 = M.vertices.point_ptr(M.cells.vertex(c,2));
-            const double* p3 = M.vertices.point_ptr(M.cells.vertex(c,3));
+	    const vec3& p0 = M.cells.point(c,0);
+	    const vec3& p1 = M.cells.point(c,1);
+	    const vec3& p2 = M.cells.point(c,2);
+	    const vec3& p3 = M.cells.point(c,3);
             return ::fabs(Geom::tetra_signed_volume(p0,p1,p2,p3));
         }
 
@@ -379,47 +357,32 @@ namespace GEO {
         // computations more stable, by cancelling the translations.
 
         double result = 0.0;
-        double center[3];
+	vec3 center{0.0, 0.0, 0.0};
         index_t nbcv = M.cells.nb_vertices(c);
-        center[0] = center[1] = center[2] = 0.0;
-        for(index_t lv=0; lv<nbcv; ++lv) {
-            const double* p = M.vertices.point_ptr(M.cells.vertex(c,lv));
-            center[0] += p[0];
-            center[1] += p[1];
-            center[2] += p[2];
+	for(const vec3& p: M.cells.points(c)) {
+	    center += p;
         }
-        center[0] /= double(nbcv);
-        center[1] /= double(nbcv);
-        center[2] /= double(nbcv);
+	center /= double(nbcv);
         for(index_t lf=0; lf<M.cells.nb_facets(c); ++lf) {
             index_t nbcfv = M.cells.facet_nb_vertices(c,lf);
             if(nbcfv == 3) {
-                const double* p1 =
-                    M.vertices.point_ptr(M.cells.facet_vertex(c,lf,0));
-                const double* p2 =
-                    M.vertices.point_ptr(M.cells.facet_vertex(c,lf,1));
-                const double* p3 =
-                    M.vertices.point_ptr(M.cells.facet_vertex(c,lf,2));
+                const vec3& p1 = M.vertices.point(M.cells.facet_vertex(c,lf,0));
+                const vec3& p2 = M.vertices.point(M.cells.facet_vertex(c,lf,1));
+                const vec3& p3 = M.vertices.point(M.cells.facet_vertex(c,lf,2));
                 result += Geom::tetra_signed_volume(center, p1, p2, p3);
             } else {
-                double facet_center[3];
-                facet_center[0] = facet_center[1] = facet_center[2] = 0.0;
+                vec3 facet_center {0.0, 0.0, 0.0};
                 for(index_t lfv=0; lfv<nbcfv; ++lfv) {
-                    const double* p =
-                        M.vertices.point_ptr(M.cells.facet_vertex(c,lf,lfv));
-                    facet_center[0] += p[0];
-                    facet_center[1] += p[1];
-                    facet_center[2] += p[2];
+		    facet_center +=
+			M.vertices.point(M.cells.facet_vertex(c,lf,lfv));
                 }
-                facet_center[0] /= double(nbcfv);
-                facet_center[1] /= double(nbcfv);
-                facet_center[2] /= double(nbcfv);
+                facet_center /= double(nbcfv);
                 for(index_t lfv1=0; lfv1<nbcfv; ++lfv1) {
                     index_t lfv2 = (lfv1 + 1) % nbcfv;
-                    const double* p1 =
-                        M.vertices.point_ptr(M.cells.facet_vertex(c,lf,lfv1));
-                    const double* p2 =
-                        M.vertices.point_ptr(M.cells.facet_vertex(c,lf,lfv2));
+                    const vec3& p1 =
+                        M.vertices.point(M.cells.facet_vertex(c,lf,lfv1));
+                    const vec3& p2 =
+                        M.vertices.point(M.cells.facet_vertex(c,lf,lfv2));
                     result +=
                         Geom::tetra_signed_volume(center, facet_center, p1, p2);
                 }
@@ -448,9 +411,9 @@ namespace GEO {
         index_t v2 = M.cells.facet_vertex(c,lf,1);
         index_t v3 = M.cells.facet_vertex(c,lf,2);
 
-        const vec3& p1 = Geom::mesh_vertex(M,v1);
-        const vec3& p2 = Geom::mesh_vertex(M,v2);
-        const vec3& p3 = Geom::mesh_vertex(M,v3);
+        const vec3& p1 = M.vertices.point(v1);
+        const vec3& p2 = M.vertices.point(v2);
+        const vec3& p3 = M.vertices.point(v3);
 
         return cross(p2 - p1, p3 - p1);
     }
@@ -478,5 +441,4 @@ namespace GEO {
         }
         return result;
     }
-
 }

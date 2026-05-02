@@ -47,10 +47,13 @@
 #define STB_IMAGE_IMPLEMENTATION
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 
-// Use internal linkage for symbols from stb_image as it is a very commonly embedded library.
-// Making these symbols visible  causes duplicate symbol problems if geogram is linked
-// statically together with another library or executable that also embeds stb_image.
+// Use internal linkage for symbols from stb_image as it is a very
+// commonly embedded library.
+// Making these symbols visible causes duplicate symbol problems
+// if geogram is linked statically together with another library or
+// executable that also embeds stb_image.
 #define STB_IMAGE_STATIC
+#define STB_IMAGE_WRITE_STATIC
 
 // [Bruno] I got too many complaints in STB so I "close my eyes" :-)
 #ifdef __GNUC__
@@ -82,8 +85,13 @@
 #pragma warning( disable : 4244 )
 #endif
 
+#ifdef GEOGRAM_USE_BUILTIN_DEPS
 #include <geogram/third_party/stb_image/stb_image.h>
 #include <geogram/third_party/stb_image/stb_image_write.h>
+#else
+#include <stb/stb_image.h>
+#include <stb/stb_image_write.h>
+#endif
 
 namespace GEO {
 
@@ -152,13 +160,21 @@ namespace GEO {
         const char* data = (const char*)(image->base_mem());
 
         if(extension == "png") {
-            result = (stbi_write_png(file_name.c_str(), w, h, comp, data, w*comp) != 0);
+            result = (
+		stbi_write_png(file_name.c_str(), w, h, comp, data, w*comp) != 0
+	    );
         } else if(extension == "bmp") {
-            result = (stbi_write_bmp(file_name.c_str(), w, h, comp, data) != 0);
+            result = (
+		stbi_write_bmp(file_name.c_str(), w, h, comp, data) != 0
+	    );
         } else if(extension == "jpeg" || extension == "jpg") {
-            result = (stbi_write_jpg(file_name.c_str(), w, h, comp, data, 80) != 0);
+            result = (
+		stbi_write_jpg(file_name.c_str(), w, h, comp, data, 80) != 0
+	    );
         } else if(extension == "tga") {
-            result = (stbi_write_tga(file_name.c_str(), w, h, comp, data) != 0);
+            result = (
+		stbi_write_tga(file_name.c_str(), w, h, comp, data) != 0
+	    );
         }
 
         image->flip_vertically();

@@ -6,8 +6,6 @@ libdir=${exec_prefix}/lib@LIB_SUFFIX@
 Name: geogram
 Description: fast, simple and easy-to-use primitives for geometric programming
 Version: @VORPALINE_VERSION@
-URL: http://alice.loria.fr/software/geogram
-Requires.private: 
-Libs: -L${libdir} -Wl,-rpath ${libdir} -lgeogram
-Libs.private: 
+URL: https://github.com/BrunoLevy/geogram
+Libs: -lgeogram
 Cflags: -I${includedir}

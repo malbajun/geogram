@@ -84,7 +84,8 @@ namespace {
         DemoRaytraceApplication() :
             SimpleApplication("RayTrace"),
             camera_(
-                get_width(), get_height(),
+                get_width(),
+		get_height(),
                 (image_format == GL_RGBA) ? 4 : 3
             )
             {
@@ -180,6 +181,8 @@ namespace {
                 GEO_CHECK_GL();
                 glBindTexture(GL_TEXTURE_2D, texture_);
                 GEO_CHECK_GL();
+		glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+                GEO_CHECK_GL();
                 glTexImage2D(
                     GL_TEXTURE_2D,
                     0,
@@ -241,8 +244,8 @@ namespace {
             );
             vec4 ffar = nnear; // 'far' is reserved under Win32 !
             ffar.z = 1.0;
-            nnear = mult(inv_project_modelview_,nnear);
-            ffar =  mult(inv_project_modelview_,ffar);
+            nnear = inv_project_modelview_ * nnear;
+            ffar =  inv_project_modelview_ * ffar;
             vec3 nearp = (1.0/nnear.w)*vec3(nnear.x, nnear.y, nnear.z);
             vec3 farp  = (1.0/ffar.w)*vec3(ffar.x , ffar.y , ffar.z );
             return Ray(nearp, farp-nearp);
@@ -291,7 +294,7 @@ namespace {
             glupGetLightVector3fv(Lf);
 
             vec3 L((double)Lf[0], (double)Lf[1], (double)Lf[2]);
-            L = normalize(mult(normalmatrix,L));
+            L = normalize(normalmatrix*L);
 
             if(L_.x != L.x || L_.y != L.y || L_.z != L.z) {
                 scene_changed_ = true;
@@ -306,10 +309,8 @@ namespace {
         void draw_scene() override {
             get_viewing_parameters();
 
-            // OpenGL does not like textures dimensions that
-            // are not multiples of 4
-            index_t w = get_width() & index_t(~3);
-            index_t h = get_height() & index_t(~3);
+            index_t w = index_t(double(get_width()) * pixel_ratio());
+            index_t h = index_t(double(get_height()) * pixel_ratio());
 
             if(camera_.image_width() != w ||
                camera_.image_height() != h) {

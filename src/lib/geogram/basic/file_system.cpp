@@ -76,8 +76,8 @@ namespace {
     class FileSystemRootNode : public FileSystem::Node {
     public:
         bool is_file(const std::string& path) override {
-            WIN32_FIND_DATA file;
-            HANDLE file_handle = FindFirstFile(path.c_str(), &file);
+            WIN32_FIND_DATAA file;
+            HANDLE file_handle = FindFirstFileA(path.c_str(), &file);
             if(file_handle == INVALID_HANDLE_VALUE) {
                 return false;
             }
@@ -86,8 +86,8 @@ namespace {
         }
 
         bool is_directory(const std::string& path) override {
-            WIN32_FIND_DATA file;
-            HANDLE file_handle = FindFirstFile(path.c_str(), &file);
+            WIN32_FIND_DATAA file;
+            HANDLE file_handle = FindFirstFileA(path.c_str(), &file);
             if(file_handle == INVALID_HANDLE_VALUE) {
                 return false;
             }
@@ -118,7 +118,7 @@ namespace {
                     continue;
                 }
                 if(!is_directory(current)) {
-                    if(!::CreateDirectory(current.c_str(), nullptr)) {
+                    if(!::CreateDirectoryA(current.c_str(), nullptr)) {
                         Logger::err("OS")
                             << "Could not create directory "
                             << current << std::endl;
@@ -130,11 +130,11 @@ namespace {
         }
 
         bool delete_directory(const std::string& path) override {
-            return ::RemoveDirectory(path.c_str()) != FALSE;
+            return ::RemoveDirectoryA(path.c_str()) != FALSE;
         }
 
         bool delete_file(const std::string& path) override {
-            return ::DeleteFile(path.c_str()) != FALSE;
+            return ::DeleteFileA(path.c_str()) != FALSE;
         }
 
         bool get_directory_entries(
@@ -154,8 +154,8 @@ namespace {
                 return false;
             }
 
-            WIN32_FIND_DATA file;
-            HANDLE file_handle = FindFirstFile("*.*", &file);
+            WIN32_FIND_DATAA file;
+            HANDLE file_handle = FindFirstFileA("*.*", &file);
             if(file_handle != INVALID_HANDLE_VALUE) {
                 do {
                     std::string file_name = file.cFileName;
@@ -164,7 +164,7 @@ namespace {
                         flip_slashes(file_name);
                         result.push_back(file_name);
                     }
-                } while(FindNextFile(file_handle, &file));
+                } while(FindNextFileA(file_handle, &file));
                 FindClose(file_handle);
             }
             set_current_working_directory(current_directory);
@@ -174,7 +174,7 @@ namespace {
         std::string get_current_working_directory() override {
             char buf[2048];
             std::string result = "";
-            if(GetCurrentDirectory(sizeof(buf), buf)) {
+            if(GetCurrentDirectoryA(sizeof(buf), buf)) {
                 result = buf;
                 flip_slashes(result);
             }
@@ -190,7 +190,7 @@ namespace {
                 path.at(path.size() - 1) != '\\') {
                 path += "/";
             }
-            return SetCurrentDirectory(path.c_str()) != -1;
+            return SetCurrentDirectoryA(path.c_str()) != -1;
         }
 
         bool rename_file(
@@ -201,7 +201,7 @@ namespace {
 
         Numeric::uint64 get_time_stamp(const std::string& path) override {
             WIN32_FILE_ATTRIBUTE_DATA infos;
-            if(!GetFileAttributesEx(
+            if(!GetFileAttributesExA(
                    path.c_str(), GetFileExInfoStandard, &infos)
               ) {
                 return 0;
@@ -215,7 +215,7 @@ namespace {
         }
 
         bool touch(const std::string& filename) override {
-            HANDLE hfile = CreateFile(
+            HANDLE hfile = CreateFileA(
                 filename.c_str(),
                 GENERIC_READ | GENERIC_WRITE,
                 FILE_SHARE_READ | FILE_SHARE_WRITE,
@@ -246,8 +246,8 @@ namespace {
             }
             std::string path = path_in;
             std::string result;
-            TCHAR buffer[MAX_PATH];
-            GetFullPathName(path.c_str(), MAX_PATH, buffer, nullptr);
+            char buffer[MAX_PATH];
+            GetFullPathNameA(path.c_str(), MAX_PATH, buffer, nullptr);
             result = std::string(buffer);
             flip_slashes(result);
             return result;
@@ -603,7 +603,7 @@ namespace GEO {
             return ".";
         }
 
-        void Node::get_directory_entries(
+        void Node::get_directory_entries_recursive(
             const std::string& path,
             std::vector<std::string>& result, bool recursive
         ) {
@@ -612,7 +612,7 @@ namespace GEO {
             if(recursive) {
                 for(size_t i = 0; i < result.size(); i++) {
                     if(is_directory(result[i])) {
-                        get_directory_entries(result[i], result, true);
+                        get_directory_entries_recursive(result[i], result, true);
                     }
                 }
             }
@@ -623,7 +623,7 @@ namespace GEO {
             std::vector<std::string>& result, bool recursive
         ) {
             std::vector<std::string> entries;
-            get_directory_entries(path, entries, recursive);
+            get_directory_entries_recursive(path, entries, recursive);
             for(size_t i = 0; i < entries.size(); i++) {
                 if(is_file(entries[i])) {
                     result.push_back(entries[i]);
@@ -631,12 +631,12 @@ namespace GEO {
             }
         }
 
-        void Node::get_subdirectories(
+        void Node::get_subdirectories_recursive(
             const std::string& path,
             std::vector<std::string>& result, bool recursive
         ) {
             std::vector<std::string> entries;
-            get_directory_entries(path, entries, recursive);
+            get_directory_entries_recursive(path, entries, recursive);
             for(size_t i = 0; i < entries.size(); i++) {
                 if(is_directory(entries[i])) {
                     result.push_back(entries[i]);
@@ -1141,11 +1141,13 @@ namespace GEO {
             return root_->dir_name(path);
         }
 
-        void get_directory_entries(
+        void get_directory_entries_recursive(
             const std::string& path,
             std::vector<std::string>& result, bool recursive
         ) {
-            return root_->get_directory_entries(path, result, recursive);
+            return root_->get_directory_entries_recursive(
+		path, result, recursive
+	    );
         }
 
         void get_files(
@@ -1159,7 +1161,7 @@ namespace GEO {
             const std::string& path,
             std::vector<std::string>& result, bool recursive
         ) {
-            return root_->get_subdirectories(path, result, recursive);
+            return root_->get_subdirectories_recursive(path, result, recursive);
         }
 
         void flip_slashes(std::string& path) {

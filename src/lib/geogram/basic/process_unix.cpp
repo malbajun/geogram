@@ -63,8 +63,29 @@
 #include <stdio.h>
 #include <new>
 
-#if !defined(GEO_OS_ANDROID) && !defined(GEO_OS_EMSCRIPTEN)
+// MUSL does not have execinfo (so we won't have backtrace with MUSL)
+#if defined(__has_include)
+#if __has_include(<execinfo.h>)
 #include <execinfo.h>
+#define HAS_EXECINFO
+#endif
+#endif
+
+// detect MUSL that does not have feenableexcepts()/desisableexcepts()
+#ifdef __linux__
+#ifndef _GNU_SOURCE
+    #define _GNU_SOURCE
+    #include <features.h>
+    #ifndef __USE_GNU
+        #define __MUSL__
+    #endif
+    #undef _GNU_SOURCE
+#else
+    #include <features.h>
+    #ifndef __USE_GNU
+        #define __MUSL__
+    #endif
+#endif
 #endif
 
 #ifdef GEO_OS_APPLE
@@ -434,7 +455,7 @@ namespace GEO {
         }
 
         bool os_enable_FPE(bool flag) {
-#if defined(GEO_OS_APPLE) || defined(GEO_OS_EMSCRIPTEN)
+#if defined(GEO_OS_APPLE) || defined(GEO_OS_EMSCRIPTEN) || defined(__MUSL__)
             geo_argused(flag);
 #else
             int excepts = 0
@@ -519,7 +540,7 @@ namespace GEO {
         }
 
         void os_print_stack_trace() {
-#if !defined(GEO_OS_ANDROID) && !defined(GEO_OS_EMSCRIPTEN)
+#ifdef HAS_EXECINFO
             constexpr int MAX_STACK_FRAMES=128;
             static void *stack_traces[MAX_STACK_FRAMES];
             int i, trace_size = 0;
@@ -532,6 +553,8 @@ namespace GEO {
             if (messages != nullptr) {
                 free(messages);
             }
+#else
+	    fprintf(stderr,"Stacktrace not available on platform\n");
 #endif
         }
     }

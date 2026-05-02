@@ -224,7 +224,10 @@ namespace {
         }
         std::string primitive_str(p1, size_t(p2-p1));
         for(int i=0; i<GLUP_NB_PRIMITIVES; ++i) {
-            if(primitive_str == GLUP::Context::glup_primitive_name(GLUPprimitive(i))) {
+            if(
+		primitive_str ==
+		GLUP::Context::glup_primitive_name(GLUPprimitive(i))
+	    ) {
                 return GLUPprimitive(i);
             }
         }
@@ -264,6 +267,7 @@ GLUPuint glupCompileProgram(const char* source_in) {
             targets.push_back(GL_VERTEX_SHADER);
             sources.push_back("//import <GLUPES/vertex_shader.h>\n");
         } else if(
+            !strcmp(glupCurrentProfileName(),"GLUP140") ||
             !strcmp(glupCurrentProfileName(),"GLUP150") ||
             !strcmp(glupCurrentProfileName(),"GLUP440")
         ) {
@@ -275,7 +279,8 @@ GLUPuint glupCompileProgram(const char* source_in) {
     GLuint program = 0;
     try {
         for(index_t i=0; i<index_t(sources.size()); ++i) {
-            GLUPuint shader = glupCompileShader(targets[i], primitive, sources[i]);
+            GLUPuint shader =
+		glupCompileShader(targets[i], primitive, sources[i]);
             if(shader == 0) {
 #ifdef GEO_OS_EMSCRIPTEN
                 return 0;
@@ -391,12 +396,10 @@ GLUPcontext glupCreateContext() {
 
     if(GLUP_profile == "auto") {
 
+	// emscripten, Apple, Android -> use GLUPES2
 #if defined(GEO_OS_EMSCRIPTEN)||defined(GEO_OS_APPLE)||defined(GEO_OS_ANDROID)
         GLUP_profile = "GLUPES2";
-//    GLUP_profile = "GLUP150"; // On Android, does something but bugged
-//      CmdLine::set_arg("gfx:GL_debug",true); // Uncomment for OpenGL debugging
-
-#if defined(GEO_OS_ANDROID)
+#  if defined(GEO_OS_ANDROID)
         GLint max_element_index;
         glGetIntegerv(GL_MAX_ELEMENT_INDEX, &max_element_index);
         GLint max_elements_indices;
@@ -407,34 +410,43 @@ GLUPcontext glupCreateContext() {
                             << " max elements indices:" << max_elements_indices
                             << " max elements vertices:" << max_elements_vertices
                             << std::endl;
-#endif
-
+#  endif
 #else
-        GEO_CHECK_GL();
-        double GLSL_version = GEO::GLSL::supported_language_version();
-        GEO_CHECK_GL();
-        if (GLSL_version >= 4.4) {
-            GEO_CHECK_GL();
-            if (!supports_tessellation_shader()) {
-                GEO::Logger::out("GLUP")
-                    << "GLSL version >= 4.4 but tessellation unsupported"
-                    << std::endl;
-                downgrade_message();
-                GEO::Logger::out("GLUP") << "Downgrading to GLUP 150..."
-                                         << std::endl;
-                GLSL_version = 1.5;
-            }
-            GEO_CHECK_GL();
-        }
+	// Windows, Linux -> if board is not NVidia, use GLUPES2
+	const char* vendor = (const char*)glGetString(GL_VENDOR);
+	if(!strstr(vendor, "NVIDIA")) {
+	    GLUP_profile = "GLUPES2";
+	}
+	// If we still don't know (Windows, Linux with an NVidia), decide
+	// based on supported GLSL version
+	if(GLUP_profile == "auto") {
+	    GEO_CHECK_GL();
+	    double GLSL_version = GEO::GLSL::supported_language_version();
+	    GEO_CHECK_GL();
+	    if (GLSL_version >= 4.4) {
+		GEO_CHECK_GL();
+		if (!supports_tessellation_shader()) {
+		    GEO::Logger::out("GLUP")
+			<< "GLSL version >= 4.4 but tessellation unsupported"
+			<< std::endl;
+		    downgrade_message();
+		    GEO::Logger::out("GLUP") << "Downgrading to GLUP 150..."
+					     << std::endl;
+		    GLSL_version = 1.5;
+		}
+		GEO_CHECK_GL();
+	    }
 
-        if(GLSL_version >= 4.4) {
-            GLUP_profile = "GLUP440";
-        } else if(GLSL_version >= 1.5) {
-            GLUP_profile = "GLUP150";
-        } else {
-            GLUP_profile = "GLUPES2";
-        }
-
+	    if(GLSL_version >= 4.4) {
+		GLUP_profile = "GLUP440";
+	    } else if(GLSL_version >= 1.5) {
+		GLUP_profile = "GLUP150";
+	    } else if(GLSL_version >= 1.4) {
+		GLUP_profile = "GLUP140";
+	    } else {
+		GLUP_profile = "GLUPES2";
+	    }
+	}
 #endif
     }
 
@@ -466,7 +478,24 @@ GLUPcontext glupCreateContext() {
             result->setup();
         } catch(...) {
             GEO::Logger::warn("GLUP")
-                << "Caught an exception in GLUP150, downgrading to GLUPES2"
+                << "Caught an exception in GLUP150, downgrading to GLUP140"
+                << std::endl;
+            downgrade_message();
+            GLUP_profile = "GLUP140";
+            delete result;
+            result = nullptr;
+        }
+    }
+#endif
+
+#ifdef GEO_GL_140
+    if(GLUP_profile == "GLUP140") {
+        try {
+            result = new GLUP::Context_GLSL140;
+            result->setup();
+        } catch(...) {
+            GEO::Logger::warn("GLUP")
+                << "Caught an exception in GLUP140, downgrading to GLUPES2"
                 << std::endl;
             downgrade_message();
             GLUP_profile = "GLUPES2";

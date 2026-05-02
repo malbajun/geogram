@@ -44,7 +44,11 @@
 #include <geogram/basic/numeric.h>
 #include <geogram/basic/memory.h>
 #include <geogram/basic/string.h>
+#ifdef GEOGRAM_USE_BUILTIN_DEPS
 #include <geogram/third_party/zlib/zlib.h>
+#else
+#include <zlib.h>
+#endif
 
 #include <stdexcept>
 #include <fstream>
@@ -129,9 +133,9 @@ namespace GEO {
      * \tparam T the type of the elements to be written
      */
     template <class T> inline bool write_ascii_attribute(
-        FILE* file, Memory::pointer base_addr, index_t nb_elements
+        FILE* file, Memory::const_pointer base_addr, index_t nb_elements
     ) {
-        T* attrib = reinterpret_cast<T*>(base_addr);
+        const T* attrib = reinterpret_cast<const T*>(base_addr);
         for(index_t i=0; i<nb_elements; ++i) {
             if(
                 fprintf(
@@ -180,9 +184,9 @@ namespace GEO {
      * \retval false otherwise
      */
     template <> inline bool write_ascii_attribute<char>(
-        FILE* file, Memory::pointer base_addr, index_t nb_elements
+        FILE* file, Memory::const_pointer base_addr, index_t nb_elements
     ) {
-        char* attrib = reinterpret_cast<char*>(base_addr);
+        const char* attrib = reinterpret_cast<const char*>(base_addr);
         for(index_t i=0; i<nb_elements; ++i) {
             if(fprintf(file, "%d\n", int(attrib[i])) == 0) {
                 return false;
@@ -226,9 +230,9 @@ namespace GEO {
      * \retval false otherwise
      */
     template <> inline bool write_ascii_attribute<bool>(
-        FILE* file, Memory::pointer base_addr, index_t nb_elements
+        FILE* file, Memory::const_pointer base_addr, index_t nb_elements
     ) {
-        char* attrib = reinterpret_cast<char*>(base_addr);
+        const char* attrib = reinterpret_cast<const char*>(base_addr);
         for(index_t i=0; i<nb_elements; ++i) {
             if(fprintf(file, "%d\n", int(attrib[i])) == 0) {
                 return false;
@@ -273,8 +277,12 @@ namespace GEO {
      * \brief The function pointer type for reading and writing attributes
      *  in ASCII files.
      */
-    typedef bool (*AsciiAttributeSerializer)(
+    typedef bool (*AsciiAttributeReadSerializer)(
         FILE* file, Memory::pointer base_address, index_t nb_elements
+    );
+
+    typedef bool (*AsciiAttributeWriteSerializer)(
+        FILE* file, Memory::const_pointer base_address, index_t nb_elements
     );
 
     /**
@@ -286,8 +294,8 @@ namespace GEO {
      */
     static void register_ascii_attribute_serializer(
         const std::string& type_name,
-        AsciiAttributeSerializer read,
-        AsciiAttributeSerializer write
+        AsciiAttributeReadSerializer read,
+        AsciiAttributeWriteSerializer write
     );
 
     /**
@@ -313,6 +321,20 @@ namespace GEO {
     }
 
     /**
+     * \brief Tests whether this GeoFile is in GARGANTUA mode.
+     * \details In GARGANTUA mode, index_t is 64 bits wide, else it is 32 bits.
+     *   geogram can be compiled in standard or GARGANTUA mode. When loading a
+     *   GARGANTUA file in standard mode, each time an index_t is read, it is
+     *   checked whether it fits in 32 bits. An exception is thrown if it is not
+     *   the case.
+     * \retval true if this file is in GARGANTUA mode
+     * \retval false otherwise
+     */
+    bool gargantua_mode() const {
+	return gargantua_mode_;
+    }
+
+    /**
      * \brief Gets the current chunk class.
      * \return the current chunk class
      */
@@ -324,7 +346,7 @@ namespace GEO {
      * \brief Gets the size of the current chunk.
      * \return the size of the current chunk, in bytes
      */
-    long current_chunk_size() const {
+    size_t current_chunk_size() const {
         return current_chunk_size_;
     }
 
@@ -496,24 +518,45 @@ namespace GEO {
     /**
      * \brief Reads an integer from the file.
      * \details Checks that I/O was completed and throws a
-     *  GeoFileException if the file is truncated. In Standard
-     *  mode a 32-bits integer is written. In Gargantua
-     *  mode a 64-bits integer is written.
+     *  GeoFileException if the file is truncated. Reads
+     *  32 or 64 bits depending on whether geogram file is
+     *  in GARGANTUA mode, and truncates or expands depending
+     *  on current GARGANTUA mode. If file is in GARGANTUA mode
+     *  and not current mode, check whether read integer fits in
+     *  32 bits and throws an exception if it is not the case.
      * \return the read integer
      */
-    index_t read_int();
+    index_t read_index_t();
 
     /**
      * \brief Writes an integer into the file.
      * \details Checks that I/O was completed and throws a
      *  GeoFileException if the file is truncated. In Standard
-     *  mode a 32-bits integer is read. In Gargantua
-     *  mode a 64-bits integer is read.
+     *  mode a 32-bits integer is written. In Gargantua
+     *  mode a 64-bits integer is written.
      * \param[in] x the integer
      * \param[in] comment an optional comment string, written to
      *  ASCII geofiles
      */
-    void write_int(index_t x, const char* comment = nullptr);
+    void write_index_t(index_t x, const char* comment = nullptr);
+
+    /**
+     * \brief Reads a 32-bit integer from the file.
+     * \details Checks that I/O was completed and throws a
+     *  GeoFileException if the file is truncated.
+     * \return the read integer converted to index_t
+     */
+    index_t read_index_t_32();
+
+    /**
+     * \brief Writes a 32-bit integer into the file.
+     * \details Checks that I/O was completed and throws a
+     *  GeoFileException if the file is truncated.
+     * \param[in] x the integer
+     * \param[in] comment an optional comment string, written to
+     *  ASCII geofiles
+     */
+    void write_index_t_32(index_t x, const char* comment = nullptr);
 
     /**
      * \brief Reads a string from the file.
@@ -539,7 +582,7 @@ namespace GEO {
      *  GeoFileException if the file is truncated.
      * \return the read integer
      */
-    size_t read_size();
+    size_t read_size_t();
 
     /**
      * \brief Writes an unsigned 64 bits integer into the file.
@@ -547,7 +590,7 @@ namespace GEO {
      *  GeoFileException if the file is truncated.
      * \param[in] x the integer
      */
-    void write_size(size_t x);
+    void write_size_t(size_t x);
 
     /**
      * \brief Reads a chunk class from the file.
@@ -592,7 +635,7 @@ namespace GEO {
      *  file.
      */
     size_t string_size(const std::string& s) const {
-        return sizeof(index_t) + s.length();
+        return sizeof(Numeric::uint32) + s.length();
     }
 
     /**
@@ -648,15 +691,27 @@ namespace GEO {
     bool ascii_;
     FILE* ascii_file_;
     std::string current_chunk_class_;
-    long current_chunk_size_;
-    long current_chunk_file_pos_;
+    size_t current_chunk_size_;
+    size_t current_chunk_file_pos_;
     std::map<std::string, AttributeSetInfo> attribute_sets_;
 
-    static std::map<std::string, AsciiAttributeSerializer>
+    static std::map<std::string, AsciiAttributeReadSerializer>
     ascii_attribute_read_;
 
-    static std::map<std::string, AsciiAttributeSerializer>
+    static std::map<std::string, AsciiAttributeWriteSerializer>
     ascii_attribute_write_;
+
+    /**
+     * \brief True if current file is in GARGANTUA mode
+     * \details In GARGANTUA mode, index_t has 64 bits
+     */
+    bool gargantua_mode_;
+
+    /** \brief True if reading a standard file in GARGANTUA mode */
+    bool convert_32_to_64_;
+
+    /** \brief True if reading a GARGANTUA file in standard mode */
+    bool convert_64_to_32_;
     };
 
     /**************************************************************/
@@ -746,6 +801,17 @@ namespace GEO {
          *  after next_chunk().
          */
         void skip_chunk();
+
+	/**
+	 * \brief Reads an array of index_t, possibly with different
+	 *   GARGANTUA mode, and adapts it to current GARGANTUA mode.
+	 * \param[out] addr buffer where to store the result
+	 * \param[in] nb_elements number of elements to read
+	 * \param[in] element_size size of an element (index_t), 4 or 8
+	 */
+	void read_and_convert_index_t_array(
+	    index_t* addr, size_t nb_elements, size_t element_size
+	);
 
         AttributeSetInfo* current_attribute_set_;
         AttributeInfo* current_attribute_;

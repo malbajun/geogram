@@ -58,6 +58,11 @@ struct lua_State;
 
 namespace GEO {
 
+    /**
+     * \brief SimpleApplication is an Application with pre-created
+     *  and customizable menus, commands, graphic attributes,
+     *  load and save dialogs, and text editor.
+     */
     class GEOGRAM_GFX_API SimpleApplication : public Application {
     public:
 
@@ -226,7 +231,6 @@ namespace GEO {
         void drop_callback(int nb, const char** f) override;
 
     protected:
-
         /**
          * \brief Declares a function to be triggered when a key is pressed.
          * \param[in] key the key ("a" for a, "F1" for F1)
@@ -374,6 +378,13 @@ namespace GEO {
          */
         virtual void draw_application_icons();
 
+
+	/**
+	 * \brief Draws a window to edit all command line arguments
+	 */
+	virtual void draw_command_line_editor();
+
+
         /**
          * \copydoc Application::post_draw()
          */
@@ -410,13 +421,6 @@ namespace GEO {
          *  or "*" if all file extensions are supported.
          */
         virtual std::string supported_write_file_extensions();
-
-        /**
-         * \brief Converts an OpenGL texture ID into an ImGUI texture ID.
-         * \param[in] gl_texture_id_in the OpenGL texture ID
-         * \return the corresponding ImGUI texture ID
-         */
-        ImTextureID convert_to_ImTextureID(GLuint gl_texture_id_in);
 
         /**
          * \copydoc GEO::Application::GL_initialize()
@@ -487,8 +491,55 @@ namespace GEO {
         virtual const char* default_layout_android_vertical() const;
         virtual const char* default_layout_android_horizontal() const;
 
-    protected:
+	/**
+	 * \brief This function is changed each time the user changed the
+	 *  value of a command line argument in the command line editor.
+	 * \param[in] argname the name of the argument that changed
+	 */
+	virtual void command_line_arg_changed(const std::string& argname);
+
+	/**
+	 * \brief Executes once again the latest issued command
+	 * \details SimpleApplication has a mechanism to handle user commands
+	 *   implemented in menus. The latest command is memorized, and not
+	 *   directly executed when the user invokes a menu, this is to avoid
+	 *   launching a command while in ImGui rendering/event handler. In
+	 *   addition, one can use this mechanism to replay the latest
+	 *   memorized command (by default, this is bound to the F5 key).
+	 */
         static void replay_latest_command();
+
+	/**
+	 * \brief Copies a rectangular zone of the framebuffer to an image
+	 * \param[in,out] image pointer to an image. If uninitialized, then
+	 *   it will be initialized to an RGB image of the specified size, else
+	 *   the present allocated image and colore ecoding are used.
+	 * \param[in] x0 , y0 origin
+	 * \param[in] width , height size. If not set, then window size is used.
+	 * \param[in] redraw if set (default), then scene is redrawn before
+	 *  taking the snapshot, without the GUI superimposed, else the current
+	 *  content of the framebuffer is used (may have the GUI superimposed).
+	 */
+	virtual void snapshot(
+	    Image* image,
+	    index_t x0=0, index_t y0=0, index_t width=0, index_t height=0,
+	    bool redraw = true
+	);
+
+	/**
+	 * \brief Saves the framebuffer to an image
+	 * \details The scene is redrawn without the gui.
+	 * \param[in] filename if left unspecified, then the command line
+	 *   argument gui:snapshot_filename is used.
+	 * \param[in] verbose if set, display a message with the snapshot
+	 *   filename
+	 */
+	virtual void snapshot(std::string filename = "", bool verbose=false);
+
+	/**
+	 * \copydoc Application::declare_args()
+	 */
+	void declare_args() override;
 
     protected:
         bool locked_; // avoid starting command when command is running
@@ -506,6 +557,7 @@ namespace GEO {
         bool console_visible_;
         bool text_editor_visible_;
         bool use_text_editor_;
+	bool command_line_editor_visible_;
 
         Box roi_;
         double roi_radius_;

@@ -66,6 +66,12 @@ namespace GEO {
         task_name_(task_name),
         verbose_(verbose)
     {
+	if(verbose_) {
+	    Logger::out(task_name_) << "Start..." << std::endl;
+	    if(task_name_ != "Total time") {
+		Logger::instance()->indent();
+	    }
+	}
     }
 
     Stopwatch::Stopwatch() :
@@ -75,6 +81,9 @@ namespace GEO {
     }
 
     double Stopwatch::elapsed_time() const {
+	// OMG, such nonsense ...
+	// ... but well, lets me get time with reasonable resolution
+	// in a portable way.
         auto now(std::chrono::system_clock::now());
         auto elapsed = now-start_;
         auto elapsed_milliseconds =
@@ -92,10 +101,17 @@ namespace GEO {
 
     Stopwatch::~Stopwatch() {
         if(verbose_) {
-            Logger::out(task_name_)
-                << "Elapsed time: " << elapsed_time()
-                << " s" << std::endl;
-        }
+	    if(task_name_ != "Total time") {
+		Logger::instance()->unindent();
+	    }
+	    print_elapsed_time();
+	}
+    }
+
+    void Stopwatch::print_elapsed_time() {
+	Logger::out(task_name_)
+	    << "Elapsed: " << String::format_time(elapsed_time())
+	    << std::endl;
     }
 
 }

@@ -96,7 +96,7 @@ namespace GEO {
 
 #ifndef GEOGRAM_PSM
                 Environment* env = Environment::instance();
-                env->set_value("version", VORPALINE_VERSION);
+                env->set_value("version", GEOGRAM_VERSION);
                 env->set_value("release_date", VORPALINE_BUILD_DATE);
                 env->set_value("SVN revision", VORPALINE_SVN_REVISION);
 #endif
@@ -128,6 +128,7 @@ namespace GEO {
                 // Register attribute types that can be saved into files.
                 geo_register_attribute_type<Numeric::uint8>("bool");
                 geo_register_attribute_type<char>("char");
+		geo_register_attribute_type<unsigned char>("unsigned char");
                 geo_register_attribute_type<int>("int");
                 geo_register_attribute_type<unsigned int>("unsigned int");
                 geo_register_attribute_type<index_t>("index_t");
@@ -154,6 +155,7 @@ namespace GEO {
                         FS.mount(NODEFS, { root: '/' }, '/root');
                     }
                 );
+
 #endif
 
 #ifndef GEOGRAM_PSM

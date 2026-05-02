@@ -124,15 +124,12 @@ namespace GEO {
         /**
          * \copydoc Delaunay::set_vertices()
          */
-        void set_vertices(
-            index_t nb_vertices, const double* vertices
-        ) override;
+        void set_vertices(index_t nb_vertices, const double* vertices) override;
 
         /**
          * \copydoc Delaunay::nearest_vertex()
          */
         index_t nearest_vertex(const double* p) const override;
-
 
     protected:
 
@@ -142,7 +139,7 @@ namespace GEO {
          *  specifying a hint. This constant indicates that
          *  no hint is given.
          */
-        static const index_t NO_TETRAHEDRON = index_t(-1);
+        static constexpr index_t NO_TETRAHEDRON = NO_INDEX;
 
         /**
          * \brief Finds in the pointset a set of four non-coplanar
@@ -292,14 +289,14 @@ namespace GEO {
          * \param[in] f_bndry index of the facet along which \p t_bndry
          *  is incident to the border of the conflict zone
          * \param[in] prev_f the facet of \p t_bndry connected to the
-         *  tetrahedron that \p t_bndry was reached from, or index_t(-1)
+         *  tetrahedron that \p t_bndry was reached from, or NO_INDEX
          *  if it is the first tetrahedron.
          * \return the index of one the newly created tetrahedron
          */
         index_t stellate_conflict_zone_iterative(
             index_t v,
             index_t t_bndry, index_t f_bndry,
-            index_t prev_f=index_t(-1)
+            index_t prev_f=NO_INDEX
         );
 
         /**
@@ -343,9 +340,9 @@ namespace GEO {
             //  Dual form (used here):
             //    halfedge_facet_[f1][f2] returns a vertex that both
             //    f1 and f2 are incident to.
-            signed_index_t ev1 =
+            index_t ev1 =
                 tet_vertex(t1, index_t(halfedge_facet_[t1ft2][t1fborder]));
-            signed_index_t ev2 =
+            index_t ev2 =
                 tet_vertex(t1, index_t(halfedge_facet_[t1fborder][t1ft2]));
 
             //   Turn around edge [ev1,ev2] inside the conflict zone
@@ -354,20 +351,20 @@ namespace GEO {
             // to outside) since it traverses a smaller number of tets.
             index_t cur_t = t1;
             index_t cur_f = t1ft2;
-            index_t next_t = index_t(tet_adjacent(cur_t,cur_f));
+            index_t next_t = tet_adjacent(cur_t,cur_f);
             while(tet_is_in_list(next_t)) {
                 geo_debug_assert(next_t != t1);
                 cur_t = next_t;
                 cur_f = get_facet_by_halfedge(cur_t,ev1,ev2);
-                next_t = index_t(tet_adjacent(cur_t, cur_f));
+                next_t = tet_adjacent(cur_t, cur_f);
             }
 
             //  At this point, cur_t is in conflict zone and
             // next_t is outside the conflict zone.
             index_t f12,f21;
             get_facets_by_halfedge(next_t, ev1, ev2, f12, f21);
-            t2 = index_t(tet_adjacent(next_t,f21));
-            signed_index_t v_neigh_opposite = tet_vertex(next_t,f12);
+            t2 = tet_adjacent(next_t,f21);
+            index_t v_neigh_opposite = tet_vertex(next_t,f12);
             t2ft1 = find_tet_vertex(t2, v_neigh_opposite);
             t2fborder = cur_f;
 
@@ -377,7 +374,7 @@ namespace GEO {
             return(t2 != cur_t);
         }
 
-        // _________ Combinatorics - new and delete _________________________
+        /****** Combinatorics - new and delete ***************************/
 
         /**
          * \brief Maximum valid index for a tetrahedron.
@@ -389,7 +386,6 @@ namespace GEO {
         index_t max_t() const {
             return cell_to_v_store_.size() / 4;
         }
-
 
         /**
          * \brief Default symbolic value of the cell_next_ field
@@ -406,7 +402,7 @@ namespace GEO {
          *  - not in a list and marked
          *    (cell_next_[t] == cur_stamp_)
          */
-        static const index_t NOT_IN_LIST  = index_t(~0);
+        static constexpr index_t NOT_IN_LIST = ~index_t(0);
 
         /**
          * \brief If cell_next_[t] & NOT_IN_LIST_BIT != 0,
@@ -423,14 +419,15 @@ namespace GEO {
          *  - not in a list and marked
          *    (cell_next_[t] == cur_stamp_)
          */
-        static const index_t NOT_IN_LIST_BIT = index_t(1u << 31);
+        static constexpr index_t NOT_IN_LIST_BIT =
+	    index_t(1) << (sizeof(index_t)*8-1) ;
 
         /**
          * \brief Symbolic value of the cell_next_ field
          *  that indicates the end of list in a linked
          *  list of tetrahedra.
          */
-        static const index_t END_OF_LIST = ~(NOT_IN_LIST_BIT);
+        static constexpr index_t END_OF_LIST = ~NOT_IN_LIST_BIT;
 
 
         /**
@@ -515,7 +512,7 @@ namespace GEO {
          * \details The three other vertices then correspond to a
          *  facet on the convex hull of the points.
          */
-        static const signed_index_t VERTEX_AT_INFINITY = -1;
+        static constexpr index_t VERTEX_AT_INFINITY = NO_INDEX;
 
         /**
          * \brief Tests whether a given tetrahedron
@@ -529,10 +526,10 @@ namespace GEO {
          */
         bool tet_is_finite(index_t t) const {
             return
-                cell_to_v_store_[4 * t]     >= 0 &&
-                cell_to_v_store_[4 * t + 1] >= 0 &&
-                cell_to_v_store_[4 * t + 2] >= 0 &&
-                cell_to_v_store_[4 * t + 3] >= 0;
+                cell_to_v_store_[4 * t]     != NO_INDEX &&
+                cell_to_v_store_[4 * t + 1] != NO_INDEX &&
+                cell_to_v_store_[4 * t + 2] != NO_INDEX &&
+                cell_to_v_store_[4 * t + 3] != NO_INDEX;
         }
 
         /**
@@ -592,8 +589,12 @@ namespace GEO {
         index_t new_tetrahedron() {
             index_t result;
             if(first_free_ == END_OF_LIST) {
-                cell_to_v_store_.resize(cell_to_v_store_.size() + 4, -1);
-                cell_to_cell_store_.resize(cell_to_cell_store_.size() + 4, -1);
+                cell_to_v_store_.resize(
+		    cell_to_v_store_.size() + 4, NO_INDEX
+		);
+                cell_to_cell_store_.resize(
+		    cell_to_cell_store_.size() + 4, NO_INDEX
+		);
                 // index_t(NOT_IN_LIST) is necessary, else with
                 // NOT_IN_LIST alone the compiler tries to generate a
                 // reference to NOT_IN_LIST resulting in a link error.
@@ -605,10 +606,10 @@ namespace GEO {
                 remove_tet_from_list(result);
             }
 
-            cell_to_cell_store_[4 * result] = -1;
-            cell_to_cell_store_[4 * result + 1] = -1;
-            cell_to_cell_store_[4 * result + 2] = -1;
-            cell_to_cell_store_[4 * result + 3] = -1;
+            cell_to_cell_store_[4 * result] = NO_INDEX;
+            cell_to_cell_store_[4 * result + 1] = NO_INDEX;
+            cell_to_cell_store_[4 * result + 2] = NO_INDEX;
+            cell_to_cell_store_[4 * result + 3] = NO_INDEX;
 
             return result;
         }
@@ -626,8 +627,8 @@ namespace GEO {
          * \return the index of the newly created tetrahedron
          */
         index_t new_tetrahedron(
-            signed_index_t v1, signed_index_t v2,
-            signed_index_t v3, signed_index_t v4
+            index_t v1, index_t v2,
+            index_t v3, index_t v4
         ) {
             index_t result = new_tetrahedron();
             cell_to_v_store_[4 * result] = v1;
@@ -684,7 +685,7 @@ namespace GEO {
             cell_next_[t] = cur_stamp_;
         }
 
-        // _________ Combinatorics ___________________________________
+        /********* Combinatorics ******************************************/
 
         /**
          * \brief Returns the local index of a vertex by
@@ -716,7 +717,7 @@ namespace GEO {
          * \return the global index of the \p lv%th vertex of tetrahedron \p t
          *  or -1 if the vertex is at infinity
          */
-        signed_index_t tet_vertex(index_t t, index_t lv) const {
+        index_t tet_vertex(index_t t, index_t lv) const {
             geo_debug_assert(t < max_t());
             geo_debug_assert(lv < 4);
             return cell_to_v_store_[4 * t + lv];
@@ -729,13 +730,12 @@ namespace GEO {
          * \return iv such that tet_vertex(t,v)==iv
          * \pre \p t is incident to \p v
          */
-        index_t find_tet_vertex(index_t t, signed_index_t v) const {
+        index_t find_tet_vertex(index_t t, index_t v) const {
             geo_debug_assert(t < max_t());
             //   Find local index of v in tetrahedron t vertices.
-            const signed_index_t* T = &(cell_to_v_store_[4 * t]);
+            const index_t* T = &(cell_to_v_store_[4 * t]);
             return find_4(T,v);
         }
-
 
         /**
          * \brief Gets the index of a vertex of a tetrahedron
@@ -747,8 +747,8 @@ namespace GEO {
         index_t finite_tet_vertex(index_t t, index_t lv) const {
             geo_debug_assert(t < max_t());
             geo_debug_assert(lv < 4);
-            geo_debug_assert(cell_to_v_store_[4 * t + lv] != -1);
-            return index_t(cell_to_v_store_[4 * t + lv]);
+            geo_debug_assert(cell_to_v_store_[4 * t + lv] != NO_INDEX);
+            return cell_to_v_store_[4 * t + lv];
         }
 
         /**
@@ -757,7 +757,7 @@ namespace GEO {
          * \param[in] lv local vertex index (0,1,2 or 3) in \p t
          * \param[in] v global index of the vertex
          */
-        void set_tet_vertex(index_t t, index_t lv, signed_index_t v) {
+        void set_tet_vertex(index_t t, index_t lv, index_t v) {
             geo_debug_assert(t < max_t());
             geo_debug_assert(lv < 4);
             cell_to_v_store_[4 * t + lv] = v;
@@ -769,10 +769,10 @@ namespace GEO {
          * \param[in] lf local facet (0,1,2 or 3) index in \p t
          * \return the tetrahedron adjacent to \p t accorss facet \p lf
          */
-        signed_index_t tet_adjacent(index_t t, index_t lf) const {
+        index_t tet_adjacent(index_t t, index_t lf) const {
             geo_debug_assert(t < max_t());
             geo_debug_assert(lf < 4);
-            signed_index_t result = cell_to_cell_store_[4 * t + lf];
+            index_t result = cell_to_cell_store_[4 * t + lf];
             return result;
         }
 
@@ -787,28 +787,24 @@ namespace GEO {
             geo_debug_assert(t1 < max_t());
             geo_debug_assert(t2 < max_t());
             geo_debug_assert(lf1 < 4);
-            cell_to_cell_store_[4 * t1 + lf1] = signed_index_t(t2);
+            cell_to_cell_store_[4 * t1 + lf1] = t2;
         }
 
         /**
          * \brief Finds the index of the facet accros which t1 is
          *  adjacent to t2_in.
          * \param[in] t1 first tetrahedron
-         * \param[in] t2_in second tetrahedron
-         * \return f such that tet_adjacent(t1,f)==t2_in
-         * \pre \p t1 and \p t2_in are adjacent
+         * \param[in] t2 second tetrahedron
+         * \return f such that tet_adjacent(t1,f)==t2
+         * \pre \p t1 and \p t2 are adjacent
          */
-        index_t find_tet_adjacent(
-            index_t t1, index_t t2_in
-        ) const {
+        index_t find_tet_adjacent(index_t t1, index_t t2) const {
             geo_debug_assert(t1 < max_t());
-            geo_debug_assert(t2_in < max_t());
-            geo_debug_assert(t1 != t2_in);
-
-            signed_index_t t2 = signed_index_t(t2_in);
+            geo_debug_assert(t2 < max_t());
+            geo_debug_assert(t1 != t2);
 
             // Find local index of t2 in tetrahedron t1 adajcent tets.
-            const signed_index_t* T = &(cell_to_cell_store_[4 * t1]);
+            const index_t* T = &(cell_to_cell_store_[4 * t1]);
             index_t result = find_4(T,t2);
 
             // Sanity check: make sure that t1 is adjacent to t2
@@ -818,8 +814,6 @@ namespace GEO {
             geo_debug_assert(tet_adjacent(t1,(result+3)%4) != t2);
             return result;
         }
-
-
 
         /**
          * \brief Sets the vertices and adjacent tetrahedra of
@@ -836,8 +830,7 @@ namespace GEO {
          */
         void set_tet(
             index_t t,
-            signed_index_t v0, signed_index_t v1,
-            signed_index_t v2, signed_index_t v3,
+	    index_t v0, index_t v1, index_t v2, index_t v3,
             index_t a0, index_t a1, index_t a2, index_t a3
         ) {
             geo_debug_assert(t < max_t());
@@ -845,13 +838,13 @@ namespace GEO {
             cell_to_v_store_[4 * t + 1] = v1;
             cell_to_v_store_[4 * t + 2] = v2;
             cell_to_v_store_[4 * t + 3] = v3;
-            cell_to_cell_store_[4 * t] = signed_index_t(a0);
-            cell_to_cell_store_[4 * t + 1] = signed_index_t(a1);
-            cell_to_cell_store_[4 * t + 2] = signed_index_t(a2);
-            cell_to_cell_store_[4 * t + 3] = signed_index_t(a3);
+            cell_to_cell_store_[4 * t] = a0;
+            cell_to_cell_store_[4 * t + 1] = a1;
+            cell_to_cell_store_[4 * t + 2] = a2;
+            cell_to_cell_store_[4 * t + 3] = a3;
         }
 
-        // _________ Combinatorics - traversals ______________________________
+        /****** Combinatorics - traversals ************************/
 
         /**
          *  Gets the local facet index incident to an
@@ -862,19 +855,16 @@ namespace GEO {
          * \return the local index of the facet incident to
          *  the oriented edge \p v1, \p v2.
          */
-        index_t get_facet_by_halfedge(
-            index_t t, signed_index_t v1, signed_index_t v2
-        ) const {
+        index_t get_facet_by_halfedge(index_t t, index_t v1, index_t v2) const {
             geo_debug_assert(t < max_t());
             geo_debug_assert(v1 != v2);
             //   Find local index of v1 and v2 in tetrahedron t
-            const signed_index_t* T = &(cell_to_v_store_[4 * t]);
+            const index_t* T = &(cell_to_v_store_[4 * t]);
             index_t lv1 = find_4(T,v1);
             index_t lv2 = find_4(T,v2);
             geo_debug_assert(lv1 != lv2);
             return index_t(halfedge_facet_[lv1][lv2]);
         }
-
 
         /**
          *  Gets the local facet indices incident to an
@@ -888,7 +878,7 @@ namespace GEO {
          *  indicent to the halfedge [v2,v1]
          */
         void get_facets_by_halfedge(
-            index_t t, signed_index_t v1, signed_index_t v2,
+            index_t t, index_t v1, index_t v2,
             index_t& f12, index_t& f21
         ) const {
             geo_debug_assert(t < max_t());
@@ -898,18 +888,18 @@ namespace GEO {
             // The following expression is 10% faster than using
             // if() statements (multiply by boolean result of test).
             // Thank to Laurent Alonso for this idea.
-            const signed_index_t* T = &(cell_to_v_store_[4 * t]);
+            const index_t* T = &(cell_to_v_store_[4 * t]);
 
-            signed_index_t lv1 =
-                (T[1] == v1) | ((T[2] == v1) * 2) | ((T[3] == v1) * 3);
+            index_t lv1 = index_t(
+                (T[1] == v1) | ((T[2] == v1) * 2) | ((T[3] == v1) * 3)
+	    );
 
-            signed_index_t lv2 =
-                (T[1] == v2) | ((T[2] == v2) * 2) | ((T[3] == v2) * 3);
+            index_t lv2 = index_t(
+                (T[1] == v2) | ((T[2] == v2) * 2) | ((T[3] == v2) * 3)
+	    );
 
             geo_debug_assert(lv1 != 0 || T[0] == v1);
             geo_debug_assert(lv2 != 0 || T[0] == v2);
-            geo_debug_assert(lv1 >= 0);
-            geo_debug_assert(lv2 >= 0);
             geo_debug_assert(lv1 != lv2);
 
             f12 = index_t(halfedge_facet_[lv1][lv2]);
@@ -926,15 +916,13 @@ namespace GEO {
          * \return the next tetrahedron from \p t around the oriented edge
          *   (\p v1 \p v2).
          */
-        index_t next_around_halfedge(
-            index_t& t, signed_index_t v1, signed_index_t v2
-        ) const {
+        index_t next_around_halfedge(index_t& t, index_t v1, index_t v2) const {
             return (index_t)tet_adjacent(
                 t, get_facet_by_halfedge(t, v1, v2)
             );
         }
 
-        // _________ Predicates _____________________________________________
+        /****** Predicates **********************************************/
 
         /**
          * \brief Tests whether a given tetrahedron is in conflict with
@@ -954,8 +942,8 @@ namespace GEO {
             // Lookup tetrahedron vertices
             const double* pv[4];
             for(index_t i=0; i<4; ++i) {
-                signed_index_t v = tet_vertex(t,i);
-                pv[i] = (v == -1) ? nullptr : vertex_ptr(index_t(v));
+                index_t v = tet_vertex(t,i);
+                pv[i] = (v == NO_INDEX) ? nullptr : vertex_ptr(v);
             }
 
             // Check for virtual tetrahedra (then in_sphere()
@@ -982,8 +970,8 @@ namespace GEO {
 
                     // If sign is zero, we check the real tetrahedron
                     // adjacent to the facet on the convex hull.
-                    geo_debug_assert(tet_adjacent(t, lf) >= 0);
-                    index_t t2 = index_t(tet_adjacent(t, lf));
+                    geo_debug_assert(tet_adjacent(t, lf) != NO_INDEX);
+                    index_t t2 = tet_adjacent(t, lf);
                     geo_debug_assert(!tet_is_virtual(t2));
 
                     //  If t2 is already chained in the conflict list,
@@ -1032,7 +1020,7 @@ namespace GEO {
          * \pre The four entries of \p T are different and one of them is
          *  equal to \p v.
          */
-        static index_t find_4(const signed_index_t* T, signed_index_t v) {
+        static index_t find_4(const index_t* T, index_t v) {
             // The following expression is 10% faster than using
             // if() statements. This uses the C++ norm, that
             // ensures that the 'true' boolean value converted to
@@ -1076,9 +1064,7 @@ namespace GEO {
          * \param[in] first index of the first tetrahedron in the list
          * \param[in] list_name name of the list, will be displayed as well
          */
-        void show_list(
-            index_t first, const std::string& list_name
-        ) const;
+        void show_list(index_t first, const std::string& list_name) const;
 
         /**
          * \brief For debugging purposes, tests some combinatorial properties.
@@ -1091,8 +1077,8 @@ namespace GEO {
         void check_geometry(bool verbose = false) const;
 
     private:
-        vector<signed_index_t> cell_to_v_store_;
-        vector<signed_index_t> cell_to_cell_store_;
+        vector<index_t> cell_to_v_store_;
+        vector<index_t> cell_to_cell_store_;
         vector<index_t> cell_next_;
         vector<index_t> reorder_;
         index_t cur_stamp_; // used for marking
@@ -1152,7 +1138,7 @@ namespace GEO {
              * \param[in] t1fbord index of the facet of \p t1 that is
              *  on the border of the conflict zone
              * \param[in] t1fprev index of the facet of \p t1 that we
-             *  come from, or index_t(-1) if \p t1 is the first tetrahedron
+             *  come from, or NO_INDEX if \p t1 is the first tetrahedron
              */
             void push(index_t t1, index_t t1fbord, index_t t1fprev) {
                 store_.resize(store_.size()+1);
@@ -1181,7 +1167,7 @@ namespace GEO {
              * \param[out] t1fbord index of the facet of \p t1 that is
              *  on the border of the conflict zone
              * \param[out] t1fprev index of the facet of \p t1 that we
-             *  come from, or index_t(-1) if \p t1 is the first tetrahedron
+             *  come from, or NO_INDEX if \p t1 is the first tetrahedron
              */
             void get_parameters(
                 index_t& t1, index_t& t1fbord, index_t& t1fprev
@@ -1200,8 +1186,8 @@ namespace GEO {
              * \param[out] t2ft1 the facet of t2 that is adjacent to t1
              */
             void get_locals(
-                index_t& new_t, index_t& t1ft2, index_t& t2ft1
-            ) const {
+		index_t& new_t, index_t& t1ft2, index_t& t2ft1
+	    ) const {
                 geo_debug_assert(!empty());
                 new_t = top().new_t;
                 t1ft2 = index_t(top().t1ft2);

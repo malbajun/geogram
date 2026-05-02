@@ -31,7 +31,7 @@ aux_source_directories(SOURCES "Source Files\\delaunay" delaunay)
 aux_source_directories(SOURCES "Source Files\\voronoi"  voronoi)
 aux_source_directories(SOURCES "Source Files\\points"   points)
 aux_source_directories(SOURCES "Source Files\\api"      api)
-aux_source_directories(SOURCES "Source Files\\NL"       NL)
+#aux_source_directories(SOURCES "Source Files\\NL"       NL)
 aux_source_directories(SOURCES "Source Files\\image"    image)
 aux_source_directories(SOURCES "Source Files\\parameterization" parameterization)
 aux_source_directories(SOURCES "Source Files\\bibliography" bibliography)
@@ -70,6 +70,7 @@ target_include_directories(geogram PUBLIC
 ${PROJECT_SOURCE_DIR}/src/lib/geogram/
 ${PROJECT_SOURCE_DIR}/src/lib/geogram/geogramplus/third_party
 )
+target_link_libraries(geogram mini-gmp-plus)
 endif()
 
 if(GEOGRAM_WITH_TBB)
@@ -136,14 +137,18 @@ endif()
 
 set_target_properties(geogram PROPERTIES
 VERSION ${VORPALINE_VERSION}
-SOVERSION ${VORPALINE_VERSION_MAJOR}
+SOVERSION ${VORPALINE_VERSION_MAJOR}.${VORPALINE_VERSION_MINOR}.${VORPALINE_VERSION_PATCH}
 FOLDER "GEOGRAM")
 
 if(UNIX AND VORPALINE_BUILD_DYNAMIC)
 if (ANDROID)
    target_link_libraries(geogram dl)
 else()
-   target_link_libraries(geogram PUBLIC pthread dl)
+  if(GEOGRAM_USE_BUILTIN_DEPS)
+      target_link_libraries(geogram pthread dl)
+  else()
+      target_link_libraries(geogram pthread dl lua5.4 z triangle Meshb.7 rply)
+  endif()
 endif()
 endif()
 
@@ -153,6 +158,10 @@ endif()
 
 if(GEOGRAM_WITH_GEOGRAMPLUS)
 target_link_libraries(geogram ${GEOGRAMPLUS_LIBS})
+endif()
+
+if(GEOGRAM_USE_BUILTIN_DEPS)
+    target_compile_definitions(geogram PUBLIC -DGEOGRAM_USE_BUILTIN_DEPS)
 endif()
 
 # Install the library
