@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-#include <geogram/third_party/OpenNL/nl_context.h>
+#include <nl_context.h>
 
 #ifdef __cplusplus
 }

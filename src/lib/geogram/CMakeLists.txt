@@ -65,6 +65,8 @@ target_include_directories(geogram PRIVATE
 ${PROJECT_SOURCE_DIR}/src/lib/geogram/third_party/amgcl
 )
 
+add_definitions("-DGEOGRAM_VERSION=\"${VORPALINE_VERSION_PLAIN}\"")
+
 if(GEOGRAM_WITH_GEOGRAMPLUS)
 target_include_directories(geogram PUBLIC
 ${PROJECT_SOURCE_DIR}/src/lib/geogram/
@@ -78,7 +80,9 @@ target_link_libraries(geogram TBB::tbb) # TODO: Use PRIVATE keyword here
 target_compile_definitions(geogram PRIVATE -DGEO_TBB)
 endif()
 
-if(NOT GEOGRAM_WITH_THIRD_PARTIES)
+if(GEOGRAM_WITH_THIRD_PARTIES)
+   target_include_directories(geogram PRIVATE ${PROJECT_SOURCE_DIR}/src/lib/geogram/third_party/OpenNL)
+else()
    find_package(PkgConfig REQUIRED)
 
    pkg_check_modules(ZLIB REQUIRED IMPORTED_TARGET zlib)
@@ -119,6 +123,13 @@ if(NOT GEOGRAM_WITH_THIRD_PARTIES)
       message(STATUS "Found libmeshb library")
       target_link_libraries(geogram PUBLIC ${libMeshb_LIBRARIES})
    endif()
+
+   find_package(OpenNL REQUIRED)
+   if(OpenNL_FOUND)
+      message(STATUS "Found OpenNL library")
+      target_link_libraries(geogram PUBLIC ${OpenNL_LIBRARIES})
+      target_include_directories(geogram PUBLIC ${OpenNL_INCLUDE_DIRS})
+   endif()
 endif()
 
 # Jeremie/Maxence: avoids the need to redeclare geogram include
@@ -145,9 +156,9 @@ if (ANDROID)
    target_link_libraries(geogram dl)
 else()
   if(GEOGRAM_USE_BUILTIN_DEPS)
-      target_link_libraries(geogram pthread dl)
+      target_link_libraries(geogram PUBLIC pthread dl)
   else()
-      target_link_libraries(geogram pthread dl lua5.4 z triangle Meshb.7 rply)
+      target_link_libraries(geogram PUBLIC pthread dl lua5.4 z triangle Meshb.7 rply)
   endif()
 endif()
 endif()
