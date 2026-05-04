@@ -422,6 +422,8 @@ namespace GEO {
          */
         virtual std::string supported_write_file_extensions();
 
+        virtual ImTextureID convert_to_ImTextureID(GLuint gl_texture_id_in);
+
         /**
          * \copydoc GEO::Application::GL_initialize()
          */

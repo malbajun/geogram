@@ -1232,7 +1232,7 @@ namespace GEO {
 			ImGui::SetNextItemWidth(-1.0f);
 			ImGui::Tooltip(help);
 			if(
-			    ImGui::InputText(("##" + full_arg_name).c_str(),&val)
+			    ImGui::InputText(("##" + full_arg_name).c_str(), (char *)&val, sizeof(val))
 			) {
 			    CmdLine::set_arg(full_arg_name, val);
 			}

@@ -94,7 +94,7 @@ namespace {
         int flags =
             ImGuiColorEditFlags_PickerHueWheel |
             ImGuiColorEditFlags_Float |
-	    ImGuiColorEditFlags_AlphaOpaque ;
+            ImGuiColorEditFlags_AlphaPreviewHalf ;
 
         if(!with_alpha) {
             flags |= ImGuiColorEditFlags_NoAlpha ;
@@ -1117,9 +1117,6 @@ namespace ImGui {
     void PushFont(ImFont* font) {
 	for(int i=0; i<ImGui::GetIO().Fonts->Fonts.size(); ++i) {
 	    if(font == ImGui::GetIO().Fonts->Fonts[i]) {
-		ImGui::PushFont(
-		    font, Application::instance()->get_font_size(index_t(i))
-		);
 		return;
 	    }
 	}
