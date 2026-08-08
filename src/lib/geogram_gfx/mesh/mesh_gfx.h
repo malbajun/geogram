@@ -654,6 +654,7 @@ namespace GEO {
     void draw_edges_array();
     void draw_edges_immediate_plain();
     void draw_edges_immediate_attrib();
+    void draw_edges_picking_filter();
 
     void draw_triangles();
     void draw_triangles_array();
@@ -1000,6 +1001,7 @@ namespace GEO {
     };
 
     Filter vertices_filter_;
+    Filter edges_filter_;
     Filter facets_filter_;
     Filter cells_filter_;
     Filter vertices_selection_filter_;
@@ -1038,7 +1040,9 @@ namespace GEO {
         Filter* filter = nullptr;
         if(&elements == &mesh_->vertices) {
             filter = &vertices_filter_;
-        } else if(&elements == &mesh_->facets) {
+        } else if(&elements == &mesh_->edges) {
+	    filter = &edges_filter_;
+	} else if(&elements == &mesh_->facets) {
             filter = &facets_filter_;
         } else if(&elements == &mesh_->cells) {
             filter = &cells_filter_;
@@ -1093,7 +1097,9 @@ namespace GEO {
         Filter* filter = nullptr;
         if(&elements == &mesh_->vertices) {
             filter = &vertices_filter_;
-        } else if(&elements == &mesh_->facets) {
+        } else if(&elements == &mesh_->edges) {
+            filter = &edges_filter_;
+	} else if(&elements == &mesh_->facets) {
             filter = &facets_filter_;
         } else if(&elements == &mesh_->cells) {
             filter = &cells_filter_;

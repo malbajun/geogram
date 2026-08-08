@@ -258,6 +258,15 @@ namespace GEO {
     virtual std::string element_typeid_name() const = 0;
 
     /**
+     * \brief Gets the user typeid name of the element type stored
+     *  in this AttributeStore.
+     * \details May be different from element_typeid_name() for instance
+     *  for Attribute<bool>, implemented using Numeric::uint8.
+     * \return the typeid name, as a string.
+     */
+    virtual std::string user_element_typeid_name() const = 0;
+
+    /**
      * \brief Gets the size.
      * \return the number of items
      */
@@ -678,8 +687,9 @@ namespace GEO {
      * \brief Stores an array of elements of a given type,
      *  and notifies a set of AttributeStoreObservers each time the
      *  storead array changes size and/or base address.
+     * \tparam ST storage type for the elements
      */
-    template <class T> class TypedAttributeStore : public AttributeStore {
+    template <class ST> class TypedAttributeStore : public AttributeStore {
     public:
 
         /**
@@ -687,11 +697,18 @@ namespace GEO {
          * \param[in] dim number of elements in each item,
          *  default value is 1, can be greater for vector
          *  attributes.
+	 * \param[in] user_type_info optional user type (default is typeid(ST)
+	 * \details \p user_type_info is used for instance by Attribute<bool>,
+	 *  with bool as user type and Numeric::uint8 as storage type
          */
-        TypedAttributeStore(index_t dim=1) :
-            AttributeStore(sizeof(T),dim) {
-	    if(!std::is_trivially_copyable<T>::value) {
-		lifecycle_ = new GenericLifeCycle<T>();
+        TypedAttributeStore(
+	    index_t dim=1, const std::type_info& user_type_info = typeid(ST)
+	) :
+            AttributeStore(sizeof(ST),dim),
+	    storage_type_(typeid(ST)),
+	    user_type_(user_type_info) {
+	    if(!std::is_trivially_copyable<ST>::value) {
+		lifecycle_ = new GenericLifeCycle<ST>();
 	    }
         }
 
@@ -729,7 +746,7 @@ namespace GEO {
             if(dim == dimension()) {
                 return;
             }
-            vector<T> new_store(size()*dim);
+            vector<ST> new_store(size()*dim);
             new_store.reserve(capacity()*dim);
             index_t copy_dim = std::min(dim, dimension());
             for(index_t i = 0; i < size(); ++i) {
@@ -746,23 +763,30 @@ namespace GEO {
         }
 
         bool elements_type_matches(const std::string& type_name) const override {
-            return type_name == typeid(T).name();
+            return (
+		type_name == storage_type_.name() ||
+		type_name == user_type_.name()
+	    );
         }
 
         std::string element_typeid_name() const override {
-            return typeid(T).name();
+            return storage_type_.name();
+        }
+
+        std::string user_element_typeid_name() const override {
+            return user_type_.name();
         }
 
         AttributeStore* clone() const override {
-            TypedAttributeStore<T>* result =
-                new TypedAttributeStore<T>(dimension());
+            TypedAttributeStore<ST>* result =
+		new TypedAttributeStore<ST>(dimension(), user_type_);
             result->resize(size());
             result->store_ = store_;
 	    result->lifecycle_ = lifecycle_;
             return result;
         }
 
-        vector<T>& get_vector() {
+        vector<ST>& get_vector() {
             return store_;
         }
 
@@ -842,32 +866,34 @@ namespace GEO {
             to += s*from;
         }
 
-
     private:
-        vector<T> store_;
+        vector<ST> store_;
+	const std::type_info& storage_type_;
+	const std::type_info& user_type_;
     };
 
     /*********************************************************************/
 
     /**
      * \brief Implementation of AttributeStoreCreator for a specific type.
-     * \tparam T type of the elements
+     * \tparam UT type of the elements (user)
+     * \tparam ST type of the elements (storage), default is UT
      */
-    template <class T>
+    template <class UT, class ST=UT>
     class TypedAttributeStoreCreator : public AttributeStoreCreator {
     public:
         /**
          * \copydoc AttributeStoreCreator::create_attribute_store()
          */
         AttributeStore* create_attribute_store(index_t dim) override{
-            return new TypedAttributeStore<T>(dim);
+            return new TypedAttributeStore<ST>(dim,typeid(UT));
         }
 
         /**
          * \copydoc AttributeStoreCreator::elements_are_trivially_copyable()
          */
 	bool elements_are_trivially_copyable() const override {
-	    return(std::is_trivially_copyable<T>::value);
+	    return(std::is_trivially_copyable<ST>::value);
 	}
     };
 
@@ -875,9 +901,12 @@ namespace GEO {
 
     /**
      * \brief Helper class to register new attribute types
-     * \tparam T attribute element type
+     * \tparam UT attribute element type (user)
+     * \tparam ST attribute element type (storage), default is UT
+     *   It can be different: for instance, for bool we use
+     *   Numeric::uint8 (to avoid the std::vector<bool> insanity !!).
      */
-    template <class T> class geo_register_attribute_type {
+    template <class UT, class ST=UT> class geo_register_attribute_type {
     public:
         /**
          * \brief geo_register_attribute_type constructor
@@ -889,9 +918,10 @@ namespace GEO {
          *  but a different \p T, then an assertion failure is triggered.
          */
         geo_register_attribute_type(const std::string& type_name) {
-            AttributeStore::register_attribute_creator(
-                new TypedAttributeStoreCreator<T>, type_name, typeid(T).name()
-            );
+	    AttributeStore::register_attribute_creator(
+		new TypedAttributeStoreCreator<UT,ST>,
+		type_name, typeid(UT).name()
+	    );
             if(type_name == "bool") {
                 GeoFile::register_ascii_attribute_serializer(
                     type_name,
@@ -901,8 +931,8 @@ namespace GEO {
             } else {
                 GeoFile::register_ascii_attribute_serializer(
                     type_name,
-                    read_ascii_attribute<T>,
-                    write_ascii_attribute<T>
+                    read_ascii_attribute<UT>,
+                    write_ascii_attribute<UT>
                 );
             }
         }
@@ -911,7 +941,7 @@ namespace GEO {
     /*********************************************************************/
 
     /**
-     * \brief Managers a set of attributes attached to
+     * \brief Manages a set of attributes attached to
      *  an object.
      */
     class GEOGRAM_API AttributesManager {
@@ -1011,6 +1041,25 @@ namespace GEO {
      *   if is is undefined.
      */
     AttributeStore* find_attribute_store(const std::string& name);
+
+    /**
+     * \brief Reads a double-typed attribute into a vector.
+     * \param[out] out receives size() * dim values.
+     * \param[out] dim the dimension of the attribute.
+     * \retval false if no attribute \p name exists or it is not double-typed.
+     */
+    bool get_doubles(
+        const std::string& name, vector<double>& out, index_t& dim
+    ) const;
+
+    /**
+     * \brief Writes a double-typed attribute, creating it if needed.
+     * \retval false on type or size mismatch
+     *  (in.size() must be size() * dim).
+     */
+    bool set_doubles(
+        const std::string& name, const vector<double>& in, index_t dim
+    );
 
     /**
      * \brief Finds an AttributeStore by name.
@@ -1187,8 +1236,11 @@ namespace GEO {
     /**
      * \brief Base class for Attributes, that manipulates an
      *  attribute stored in an AttributesManager.
+     * \tparam UT user element type
+     * \tparam ST stored element type (default = UT)
      */
-    template <class T> class AttributeBase : public AttributeStoreObserver {
+    template <class UT, class ST = UT>
+    class AttributeBase : public AttributeStoreObserver {
     public:
 
         /**
@@ -1267,11 +1319,11 @@ namespace GEO {
             manager_ = &manager;
             store_ = manager_->find_attribute_store(name);
             if(store_ == nullptr) {
-                store_ = new TypedAttributeStore<T>();
+                store_ = new TypedAttributeStore<ST>(1,typeid(UT));
                 manager_->bind_attribute_store(name,store_);
 		existed_already_ = false;
             } else {
-                geo_assert(store_->elements_type_matches(typeid(T).name()));
+                geo_assert(can_bind_to(store_));
 		existed_already_ = true;
             }
             register_me(store_);
@@ -1293,7 +1345,7 @@ namespace GEO {
             manager_ = &manager;
             store_ = manager_->find_attribute_store(name);
             if(store_ != nullptr) {
-                geo_assert(store_->elements_type_matches(typeid(T).name()));
+                geo_assert(can_bind_to(store_));
                 register_me(store_);
 		existed_already_ = true;
                 return true;
@@ -1319,7 +1371,7 @@ namespace GEO {
             store_ = manager.find_attribute_store(name);
             if(store_ != nullptr) {
 		existed_already_ = true;
-                if( !store_->elements_type_matches(typeid(T).name()) ) {
+                if(!can_bind_to(store_)) {
                     store_ = nullptr;
                     return false;
                 }
@@ -1345,7 +1397,7 @@ namespace GEO {
             geo_assert(!is_bound());
             manager_ = &manager;
             geo_assert(manager_->find_attribute_store(name) == nullptr);
-            store_ = new TypedAttributeStore<T>(dimension);
+            store_ = new TypedAttributeStore<ST>(dimension,typeid(UT));
             manager_->bind_attribute_store(name,store_);
             register_me(store_);
         }
@@ -1406,7 +1458,7 @@ namespace GEO {
             AttributeStore* store = manager.find_attribute_store(name);
             return (
                 store != nullptr &&
-                store->elements_type_matches(typeid(T).name()) &&
+		can_bind_to(store) &&
                 ((dim == 0) || (store->dimension() == dim))
             );
         }
@@ -1439,7 +1491,7 @@ namespace GEO {
          */
         bool can_get_vector() {
             return(
-                dynamic_cast<TypedAttributeStore<T>*>(store_) != nullptr
+                dynamic_cast<TypedAttributeStore<ST>*>(store_) != nullptr
             );
         }
 
@@ -1453,9 +1505,9 @@ namespace GEO {
          * \note Advanced users only. Most client code will not need
          *  to use this function.
          */
-        vector<T>& get_vector() {
-            TypedAttributeStore<T>* typed_store =
-                dynamic_cast<TypedAttributeStore<T>*>(store_);
+        vector<ST>& get_vector() {
+            TypedAttributeStore<ST>* typed_store =
+                dynamic_cast<TypedAttributeStore<ST>*>(store_);
             geo_assert(typed_store != nullptr);
             return typed_store->get_vector();
         }
@@ -1466,9 +1518,9 @@ namespace GEO {
          * \return a const reference to the vector<T> used to store the
          *  attribute.
          */
-        const vector<T>& get_vector() const {
-            TypedAttributeStore<T>* typed_store =
-                dynamic_cast<TypedAttributeStore<T>*>(store_);
+        const vector<ST>& get_vector() const {
+            TypedAttributeStore<ST>* typed_store =
+                dynamic_cast<TypedAttributeStore<ST>*>(store_);
             geo_assert(typed_store != nullptr);
             return typed_store->get_vector();
         }
@@ -1480,6 +1532,21 @@ namespace GEO {
         AttributesManager* manager() const {
             return manager_;
         }
+
+    protected:
+
+	/**
+	 * \brief Tests whether this Attribute can be bound to an AttributeStore
+	 * \param[in] store the AttributeStore
+	 * \retval true if \p store has elements with a compatible type
+	 * \retval false otherwise
+	 */
+	static bool can_bind_to(const AttributeStore* store) {
+	    return (
+		store->elements_type_matches(typeid(UT).name()) ||
+		store->elements_type_matches(typeid(ST).name())
+	    );
+	}
 
     protected:
         AttributesManager* manager_;
@@ -1604,9 +1671,10 @@ namespace GEO {
      *   mechanism. This wrapper class uses an Attribute<Numeric::uint8>
      *   and does the appropriate conversions, using an accessor class.
      */
-    template <> class Attribute<bool> : public AttributeBase<Numeric::uint8> {
+    template <> class Attribute<bool> :
+	public AttributeBase<bool,Numeric::uint8> {
     public:
-        typedef AttributeBase<Numeric::uint8> superclass;
+        typedef AttributeBase<bool,Numeric::uint8> superclass;
 
         Attribute() : superclass() {
         }
@@ -1616,7 +1684,6 @@ namespace GEO {
         }
 
         class BoolAttributeAccessor;
-
 
         /**
          * \brief Accessor class for adapting Attribute<bool>

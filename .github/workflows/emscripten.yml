@@ -16,12 +16,12 @@ jobs:
             name: Linux
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           submodules: recursive
 
       - name: Checkout exploragram
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: BrunoLevy/exploragram
           path: src/lib/exploragram
@@ -48,7 +48,7 @@ jobs:
           geobox geocod geoshade
 
       - name: Publish programs and webpages on gh-pages
-        uses: peaceiris/actions-gh-pages@v4
+        uses: peaceiris/actions-gh-pages@v4.1.0
         with:
           deploy_key: ${{ secrets.ACTIONS_DEPLOY_KEY_RUN }}
           external_repository: BrunoLevy/geogram.run

@@ -343,25 +343,15 @@ namespace GEO {
                     size_ = size_in;
                     index_t nb_words = (size_ >> 5) + 1;
                     delete[] spinlocks_;
-                    spinlocks_ = new std::atomic<uint32_t>[nb_words];
-                    for(index_t i=0; i<nb_words; ++i) {
-                        // Note: std::atomic_init() is deprecated in C++20
-                        // that can initialize std::atomic through its
-                        // non-default constructor. We'll need to do something
-                        // else when we'll switch to C++20 (placement new...)
-                        std::atomic_init<uint32_t>(&spinlocks_[i],0u);
-                    }
+		    // Each entry is initialized with 0 -------------v
+                    spinlocks_ = new std::atomic<uint32_t>[nb_words]{};
                 }
-// Test at compile time that we are using atomic uint32_t operations (and not
-// using an additional lock which would be catastrophic in terms of performance)
-#ifdef __cpp_lib_atomic_is_always_lock_free
+
+                // Test at compile time that we are using atomic
+                // uint32_t operations (and not using an additional
+                // lock which would be catastrophic in terms of
+                // performance)
                 static_assert(std::atomic<uint32_t>::is_always_lock_free);
-#else
-// If we cannot test that at compile time, we test that at runtime in debug
-// mode (so that we will be notified in the non-regression test if one of
-// the platforms has the problem, which is very unlikely though...)
-                geo_debug_assert(size_ == 0 || spinlocks_[0].is_lock_free());
-#endif
             }
 
             /**

@@ -70,6 +70,18 @@ namespace GEO {
      */
     template <class BOX> class AABB {
 
+    public:
+	/**
+	 * \brief Enlarges all the boxes
+	 * \param[in] amount the amount that should be subtracted from the lower
+	 *  bounds and added to the upper bounds of each box.
+	 */
+	void enlarge_boxes(double amount) {
+	    for(auto& B: bboxes_) {
+		B.enlarge(amount);
+	    }
+	}
+
     protected:
 
         /**
@@ -505,13 +517,18 @@ namespace GEO {
          *  and that is invoked of all pairs of facets that have overlapping
          *  bounding boxes. triangles_intersections() needs to be
          *  called to detect the actual intersections.
+	 * \param[in] concurrent if set, then action can be called simultaneously
+	 *  by concurrent threads, else it is only the determination of
+	 *  overlapping bboxes that is parallelized, then the list of overlapping
+	 *  bboxes is internally memorized for serializing the calls to action.
          */
         void compute_facet_bbox_intersections(
-            std::function<void(index_t, index_t)> action
+            std::function<void(index_t, index_t)> action,
+	    bool concurrent = false
         ) const {
 	    if(
 		Process::maximum_concurrent_threads() <= 1 ||
-		mesh_->facets.nb() <= 65536
+		mesh_->facets.nb() <= 1024
 	    ) {
 		self_intersect_recursive(
 		    action,
@@ -519,7 +536,7 @@ namespace GEO {
 		    1, 0, mesh_->facets.nb()
 		);
 	    } else {
-		self_bbox_intersections_parallel(action);
+		self_bbox_intersections_parallel(action, concurrent);
 	    }
 
         }
@@ -736,6 +753,18 @@ namespace GEO {
         ) const;
 
 
+        /**
+         * \brief Calls a user function for all line-facet intersections
+         * \param[in] O origin of the line
+	 * \param[in] D direction vector of the line
+         * \param[in] action the function to be called
+         */
+        void line_all_intersections(
+            const vec3& O, const vec3& D,
+            std::function<void(const Intersection&)> action
+        ) const;
+
+
 	/**
 	 * \brief Tests whether a closed surface contains a point
 	 * \pre The surface from which the MeshFacetsAABB was constructed
@@ -868,6 +897,25 @@ namespace GEO {
          */
         void ray_all_intersections_recursive(
             const Ray& R, const vec3& dirinv,
+            std::function<void(const Intersection&)> action,
+            index_t n, index_t b, index_t e
+        ) const;
+
+
+        /**
+         * \brief The function used to implement line_all_intersections()
+         * \param[in] O origin of the line
+	 * \param[in] D direction vector of the line
+         * \param[in] dirinv
+         *               precomputed 1/D.x, 1/D.y, 1/D.z
+         * \param[in] action the function to be called
+         * \param[in] n index of the current node in the AABB tree
+         * \param[in] b index of the first facet in the subtree under node \p n
+         * \param[in] e one position past the index of the last facet in the
+         *  subtree under node \p n
+         */
+        void line_all_intersections_recursive(
+            const vec3& O, const vec3& D, const vec3& dirinv,
             std::function<void(const Intersection&)> action,
             index_t n, index_t b, index_t e
         ) const;

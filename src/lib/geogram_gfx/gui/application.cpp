@@ -782,43 +782,74 @@ namespace GEO {
 #endif
         }
 
-        if(CmdLine::get_arg_bool("gfx:full_screen")) {
-            GLFWmonitor* monitor = glfwGetPrimaryMonitor();
+	bool full_screen = CmdLine::get_arg_bool("gfx:full_screen");
+	bool no_decoration = CmdLine::get_arg_bool("gfx:no_decoration");
+	bool hidden = CmdLine::get_arg_bool("gfx:hidden");
+	GLFWmonitor* monitor = glfwGetPrimaryMonitor();
+	{
+	    int monitor_id = CmdLine::get_arg_int("gfx:monitor");
+	    if(monitor_id >= 0) {
+		int nb_monitors;
+		GLFWmonitor** monitors = glfwGetMonitors(&nb_monitors);
+		if(monitor_id < nb_monitors) {
+		    Logger::out("Skin") << "Using monitor " << monitor_id
+					<< std::endl;
+		    monitor = monitors[monitor_id];
+		} else {
+		    Logger::warn("Skin") << "Invalid monitor " << monitor_id
+					 << std::endl;
+		}
+	    }
+	}
+
+	if(full_screen) {
             const GLFWvidmode* vidmode = glfwGetVideoMode(monitor);
             width_ = index_t(vidmode->width);
             height_ = index_t(vidmode->height);
+	}
 
-            bool no_decoration = CmdLine::get_arg_bool("gfx:no_decoration");
+	if(no_decoration && !hidden) {
+	    glfwWindowHint(GLFW_FOCUSED,GL_TRUE);
+	    glfwWindowHint(GLFW_DECORATED,GL_FALSE);
+	    glfwWindowHint(GLFW_RESIZABLE,GL_FALSE);
+	    glfwWindowHint(GLFW_AUTO_ICONIFY,GL_FALSE);
+	    glfwWindowHint(GLFW_FLOATING,GL_FALSE);
+	    glfwWindowHint(GLFW_MAXIMIZED,GL_TRUE);
+	} else {
+	    glfwWindowHint(GLFW_VISIBLE,GL_FALSE);
+	}
 
-            if(no_decoration) {
-                glfwWindowHint(GLFW_FOCUSED,GL_TRUE);
-                glfwWindowHint(GLFW_DECORATED,GL_FALSE);
-                glfwWindowHint(GLFW_RESIZABLE,GL_FALSE);
-                glfwWindowHint(GLFW_AUTO_ICONIFY,GL_FALSE);
-                glfwWindowHint(GLFW_FLOATING,GL_FALSE);
-                glfwWindowHint(GLFW_MAXIMIZED,GL_TRUE);
-            }
+	data_->window_ = glfwCreateWindow(
+	    int(width_), int(height_), title,
+	    no_decoration ? monitor : nullptr,
+	    nullptr
+	);
 
-            data_->window_ = glfwCreateWindow(
-                int(width_), int(height_), title,
-                no_decoration ? glfwGetPrimaryMonitor() : nullptr,
-                nullptr
-            );
-
-        } else {
-
-	    if(CmdLine::get_arg_bool("gfx:hidden")) {
-		glfwWindowHint(GLFW_VISIBLE,GL_FALSE);
+	if(data_->window_ != nullptr) {
+	    if(hidden) {
+		// seems that without the line below window cannot be made
+		// larger than default monitor (for offscreen windows)
+		glfwSetWindowSize(data_->window_, int(width_), int(height_));
+	    } else {
+		// Move window to chosen monitor (this is done by
+		// querying monitor's offset in virtual desktop coordinate
+		// space).
+		int winposx = 0;
+		int winposy = 0;
+		glfwGetMonitorPos(monitor, &winposx, &winposy);
+		Logger::out("GLFW") << "Monitor "
+				    << " pos="
+				    << winposx << " " << winposy
+				    << std::endl;
+		if(!full_screen) {
+		    winposx += 100;
+		    winposy += 100;
+		}
+		glfwSetWindowPos(data_->window_, winposx, winposy);
+		glfwShowWindow(data_->window_);
+		glfwSetWindowPos(data_->window_, winposx, winposy);
 	    }
-
-            data_->window_ = glfwCreateWindow(
-                int(width_), int(height_), title, nullptr, nullptr
-            );
-
-	    // seems that without the line below window cannot be made
-	    // larger than default monitor.
-	    glfwSetWindowSize(data_->window_, int(width_), int(height_));
-        }
+	}
 
         if(data_->window_ == nullptr) {
             Logger::err("Skin")

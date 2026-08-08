@@ -217,17 +217,20 @@ namespace {
      * \param[out] u , v the intersection point is A + u (B-A) + v (C-A).
      *   when it exists.
      * \param[out] N the normal to the triangle.
+     * \param[in] bidirectional if set, computes a line-triangle intersection
+     *  (intersections before \p O are also reported)
      * \retval true if there is an intersection point
      * \retval false otherwise
      */
     bool ray_triangle_intersection(
         const vec3& O, const vec3& D,
         const vec3& A, const vec3& B, const vec3& C,
-        double& t, double& u, double& v, vec3& N
+        double& t, double& u, double& v, vec3& N,
+	bool bidirectional = false
     ) {
         // M\"oller and Trumbore,
         // Fast, Minimum Storage Ray-Triangle Intersection,
-        // Journal of Graphics Tools, vol. 2,‎ 1997, p. 21–28
+        // Journal of Graphics Tools, vol. 2, 1997, p. 21-28
         // (with small adaptations: branchless, and reusing the normal vector)
         //
         // Let E1 = B-A; E2 = C-A, write ray eqn (1) and triangle eqn (2), then
@@ -295,7 +298,7 @@ namespace {
         t =  dot(AO,N)   * invdet;
         return (
             (fabs(det) >= 1e-20) &&
-            (t >= 0.0) &&
+            (bidirectional || t >= 0.0) &&
             (u >= 0.0) &&
             (v >= 0.0) &&
             ((u+v) <= 1.0)
@@ -324,11 +327,14 @@ namespace {
      * \param[in] box the box.
      * \param[in] T the maximum acceptable value for the intersection parameter.
      *    Can be used to early-prune boxes while traversing the tree.
+     * \param[in] bidirectional if set, computes a line-box intersection
+     *  (intersections before \p q1 are also reported)
      * \retval true if [q1,q2] intersects the box.
      * \retval false otherwise.
      */
     bool ray_box_intersection(
-        const vec3& q1, const vec3& dirinv, const Box& box, double T = 1.0
+        const vec3& q1, const vec3& dirinv, const Box& box, double T = 1.0,
+	bool bidirectional = false
     ) {
         // This version: slab method.
         // Step 1: compute
@@ -370,22 +376,20 @@ namespace {
             min3(std::max(tx1,tx2), std::max(ty1,ty2), std::max(tz1,tz2));
 
         // There is no intersection if the interval is empty (tmin > tmax)
-        // or if the interval is outside [0,1]
+        // or if the interval is outside [0,T]
         // Note: the test is tmin <= tmax, because a bbox can be infinitely
         // thin (for instance, the bbox of a triangle orthogonal to one
         // of the axes).
 
-        return (tmax >= 0.0) && (tmin <= tmax) && (tmin <= T);
+        return (bidirectional || tmax >= 0.0) && (tmin <= tmax) && (tmin <= T);
     }
-
-
 }
 
 /****************************************************************************/
 
 namespace GEO {
 
-    /***************************************************************************************/
+    /************************************************************************/
 
     void MeshFacetsAABB::initialize(Mesh& M, AABBReorderMode reorder_mode) {
         mesh_ = &M;
@@ -644,6 +648,21 @@ namespace GEO {
         );
     }
 
+    void MeshFacetsAABB::line_all_intersections(
+        const vec3& O, const vec3& D,
+        std::function<void(const Intersection&)> action
+    ) const {
+        vec3 dirinv(
+            1.0/D.x,
+            1.0/D.y,
+            1.0/D.z
+        );
+        line_all_intersections_recursive(
+            O, D, dirinv, action,
+            1, 0, mesh_->facets.nb()
+        );
+    }
+
     bool MeshFacetsAABB::ray_intersection_recursive(
         const Ray& R, const vec3& dirinv, double tmax, index_t ignore_f,
         index_t n, index_t b, index_t e
@@ -789,12 +808,50 @@ namespace GEO {
         ray_all_intersections_recursive(R, dirinv, action, childl, b, m);
     }
 
+    void MeshFacetsAABB::line_all_intersections_recursive(
+        const vec3& O, const vec3& D, const vec3& dirinv,
+        std::function<void(const Intersection&)> action,
+        index_t n, index_t b, index_t e
+    ) const {
+	static constexpr bool bidirectional = true;
+        Intersection I;
+        if(!ray_box_intersection(O, dirinv, bboxes_[n], I.t, bidirectional)) {
+            return;
+        }
+        if(b + 1 == e) {
+            index_t f = element_in_leaf(b);
+	    for( auto [ v1, v2, v3] : mesh_->facets.triangles(f)) {
+		const vec3& p1 = mesh_->vertices.point(v1);
+		const vec3& p2 = mesh_->vertices.point(v2);
+		const vec3& p3 = mesh_->vertices.point(v3);
+                vec3 N;
+                if(
+		    ray_triangle_intersection(
+			O,D,p1,p2,p3,I.t,I.u,I.v,I.N,bidirectional
+		    )
+		) {
+                    I.i = v1;
+                    I.j = v2;
+                    I.k = v3;
+                    I.f = f;
+                    action(I);
+                }
+	    }
+            return;
+        }
+        index_t m = b + (e - b) / 2;
+        index_t childl = 2 * n;
+        index_t childr = 2 * n + 1;
+        line_all_intersections_recursive(O, D, dirinv, action, childr, m, e);
+        line_all_intersections_recursive(O, D, dirinv, action, childl, b, m);
+    }
+
     void MeshFacetsAABB::self_bbox_intersections_parallel(
 	std::function<void(index_t, index_t)> action, bool concurrent
     ) const {
 
-	// the parameter of a job, that is, computing the
-	// intersection between two subtrees.
+	// the parameter of a job that computes the intersection
+	// between two subtrees.
 	struct Job {
 	    index_t node1; index_t b1; index_t e1;
 	    index_t node2; index_t b2; index_t e2;

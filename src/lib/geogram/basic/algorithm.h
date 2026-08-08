@@ -41,9 +41,13 @@
 #define GEOGRAM_BASIC_ALGORITHM
 
 #include <geogram/basic/common.h>
+#include <geogram/basic/numeric.h>
 #include <algorithm>
 #include <random>
+
+#ifdef GEO_PARALLEL_STL
 #include <execution>
+#endif
 
 /**
  * \file geogram/basic/algorithm.h
@@ -51,10 +55,6 @@
  */
 
 namespace GEO {
-
-#if !defined(GEO_COMPILER_CLANG) && !defined(GEO_OS_EMSCRIPTEN)
-#define GEO_PARALLEL_STL
-#endif
 
     /**
      * \brief Checks whether parallel algorithms are used.
@@ -194,11 +194,9 @@ namespace GEO {
      *  position of the sequence to be randomly permuted
      */
     template <typename ITERATOR>
-    inline void random_shuffle(
-        const ITERATOR& begin, const ITERATOR& end
-    ) {
-	std::random_device rng;
-	std::mt19937 urng(rng());
+    inline void random_shuffle(const ITERATOR& begin, const ITERATOR& end) {
+	Numeric::int32 seed = Numeric::random_int32();
+	std::mt19937 urng{Numeric::uint32(seed)};
 	std::shuffle(begin, end, urng);
     }
 

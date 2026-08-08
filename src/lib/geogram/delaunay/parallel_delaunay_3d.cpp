@@ -1400,7 +1400,12 @@ namespace GEO {
         index_t locate_inexact(
             const double* p, index_t hint, index_t max_iter
         ) const {
-            // If no hint specified, find a tetrahedron randomly
+            //   If no hint was specified, or the specified hint refers to a
+            // tetrahedron that another thread freed/recycled in the meanwhile,
+            // find a tetrahedron randomly.
+            if(hint != NO_TETRAHEDRON && tet_is_free(hint)) {
+                hint = NO_TETRAHEDRON;
+            }
             while(hint == NO_TETRAHEDRON) {
                 hint = thread_safe_random(max_used_t_);
                 if(tet_is_free(hint) || tet_thread(hint) != NO_THREAD) {
@@ -1438,11 +1443,13 @@ namespace GEO {
                 for(index_t lv=0; lv<4; ++lv) {
                     index_t iv = tet_vertex(t,lv);
 
-                    // Since we did not acquire any lock,
+
+		    // Since we did not acquire any lock,
                     // it is possible that another threads made
-                    // this tetrahedron virtual (in this case
-                    // we exit immediately).
-                    if(iv == NO_INDEX) {
+                    // this tetrahedron virtual (iv == NO_INDEX) or
+		    // deleted this tetrahedron (iv == VERTEX_OF_DELETED_TET)
+		    // (in both cases we exit immediately).
+                    if(iv == NO_INDEX || iv == VERTEX_OF_DELETED_TET) {
                         return NO_TETRAHEDRON;
                     }
                     pv[lv] = vertex_ptr(iv);

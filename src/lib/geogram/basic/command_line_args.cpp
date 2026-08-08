@@ -190,6 +190,11 @@ namespace {
             "algo:nn_search", "BNN",
             "Nearest neighbors search (BNN, ...)"
         );
+	declare_arg(
+	    "algo:random_seed", -1,
+	    "seed for random number generator"
+	    " (-1: use default, -2: non-deterministic)"
+	);
         declare_arg(
             "algo:delaunay", "NN",
             "Delaunay algorithm"
@@ -711,6 +716,10 @@ namespace {
 	declare_arg(
 	    "gfx:hidden", false,
 	    "if set, window is hidden (useful for offscreen rendering)"
+	);
+	declare_arg(
+	    "gfx:monitor", -1,
+	    "monitor where to open window, or -1 for default"
 	);
     }
 

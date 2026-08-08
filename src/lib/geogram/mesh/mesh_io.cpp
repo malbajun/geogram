@@ -3817,7 +3817,7 @@ namespace GEO {
                 ) {
                     std::string element_type =
                         AttributeStore::element_type_name_by_element_typeid_name(
-                            store->element_typeid_name()
+                            store->user_element_typeid_name()
                         );
 
                     out.write_attribute(
@@ -4760,8 +4760,8 @@ namespace GEO {
 
             M.vertices.remove_isolated();
 
-            Attribute<int> region;
-            Attribute<int> bdr_region;
+            Attribute<index_t> region;
+            Attribute<index_t> bdr_region;
             if (M.cells.attributes().is_defined("region")) {
                 region.bind(M.cells.attributes(), "region");
             }
@@ -4820,7 +4820,7 @@ namespace GEO {
                 for (index_t f = 0; f < M.facets.nb(); ++f) {
                     int attr_value = 0;
                     if (bdr_region.is_bound()){
-                        attr_value = bdr_region[f];
+                        attr_value = int(bdr_region[f]);
                     }
                     int type = -1;
                     if (M.facets.nb_vertices(f) == 3) {
@@ -4844,7 +4844,9 @@ namespace GEO {
                     continue;
                 }
                 int attr_value = 0;
-                if (region.is_bound()) attr_value = region[c];
+                if (region.is_bound()) {
+		    attr_value = int(region[c]);
+		}
                 const index_t* msh2geo =
                     (M.cells.type(c) == GEO::MESH_HEX) ?
                     msh2geo_hex : msh2geo_def;
@@ -5101,6 +5103,14 @@ namespace GEO {
     ) {
         GeogramIOHandler geogram;
         return geogram.save(M, geofile, ioflags);
+    }
+
+    bool Mesh::load(const std::string& filename) {
+        return mesh_load(filename, *this);
+    }
+
+    bool Mesh::save(const std::string& filename) const {
+        return mesh_save(*this, filename);
     }
 
 }

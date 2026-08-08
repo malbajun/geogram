@@ -126,7 +126,7 @@ namespace GEO {
 
 #ifndef GEOGRAM_PSM
                 // Register attribute types that can be saved into files.
-                geo_register_attribute_type<Numeric::uint8>("bool");
+		geo_register_attribute_type<bool,Numeric::uint8>("bool");
                 geo_register_attribute_type<char>("char");
 		geo_register_attribute_type<unsigned char>("unsigned char");
                 geo_register_attribute_type<int>("int");
@@ -146,9 +146,13 @@ namespace GEO {
                 // program runs in node.js.
                 // Current working directory is mounted in /working,
                 // and root directory is mounted in /root
+                //
+                // Skip this when NODERAWFS is enabled: the real filesystem is already
+                // mounted at '/', so FS.mkdir('/working') would try to create a directory
+                // at the real root and fail with EROFS (crashing worker pthreads).
 
                 EM_ASM(
-                    if(typeof module !== 'undefined' && this.module !== module) {
+                    if(typeof NODERAWFS === 'undefined' && typeof module !== 'undefined' && this.module !== module) {
                         FS.mkdir('/working');
                         FS.mkdir('/root');
                         FS.mount(NODEFS, { root: '.' }, '/working');

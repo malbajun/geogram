@@ -45,6 +45,7 @@
 #include <geogram/basic/numeric.h>
 #include <geogram/basic/argused.h>
 #include <vector>
+#include <new>
 #include <string.h>
 #include <stdlib.h>
 
@@ -662,14 +663,6 @@ namespace GEO {
             void destroy(pointer p) {
 		geo_argused(p); // else MSVC complains
                 p->~value_type();
-            }
-
-            /**
-             * \brief Conversion operator to different aligned_allocator
-             * \details Required when compiling under MSVC version <= 2010
-             */
-            template <class T2, int A2> operator aligned_allocator<T2, A2>() {
-                return aligned_allocator<T2,A2>();
             }
         };
 

@@ -226,16 +226,12 @@ namespace GEO {
                     cell_status_t val = (i < size_) ?
                         old_cell_status[i].load(std::memory_order_relaxed) :
                         FREE_CELL;
-                    std::atomic_init(&cell_status_[i],val);
+                    cell_status_[i].store(val, std::memory_order_relaxed);
                 }
                 delete[] old_cell_status;
             }
             size_ = size_in;
-#ifdef __cpp_lib_atomic_is_always_lock_free
             static_assert(std::atomic<cell_status_t>::is_always_lock_free);
-#else
-            geo_debug_assert(size_ == 0 || cell_status_[0].is_lock_free());
-#endif
         }
 
         /**

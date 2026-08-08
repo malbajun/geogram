@@ -72,7 +72,7 @@ namespace GEO {
         cells_colors_by_type_ = false;
         lighting_ = true;
         picking_mode_ = MESH_NONE;
-        object_picking_id_ = index_t(-1);
+        object_picking_id_ = NO_INDEX;
         mesh_ = nullptr;
         triangles_and_quads_ = true;
         quads_ = true;
@@ -155,6 +155,7 @@ namespace GEO {
         buffer_objects_dirty_ = true;
         attributes_buffer_objects_dirty_ = true;
         vertices_filter_.dirty = true;
+	edges_filter_.dirty = true;
         facets_filter_.dirty = true;
         cells_filter_.dirty = true;
 	vertices_selection_filter_.dirty = true;
@@ -346,12 +347,14 @@ namespace GEO {
         if(attribute_subelements_ == MESH_VERTICES) {
             begin_attributes();
         }
+        edges_filter_.begin(mesh_->edges.attributes());
         glupDrawElements(
             GLUP_LINES,
             GLUPsizei(mesh_->edges.nb()*2),
             GL_UNSIGNED_INT,
             nullptr
         );
+	edges_filter_.end();
         if(attribute_subelements_ == MESH_VERTICES) {
             end_attributes();
         }
@@ -359,21 +362,30 @@ namespace GEO {
     }
 
     void MeshGfx::draw_edges_immediate_plain() {
+	edges_filter_.begin(mesh_->edges.attributes(), false);
         glupBegin(GLUP_LINES);
         for(index_t e: mesh_->edges) {
+	    if(!edges_filter_.test(e)) {
+		continue;
+	    }
             index_t v1 = mesh_->edges.vertex(e,0);
             index_t v2 = mesh_->edges.vertex(e,1);
             draw_vertex(v1);
             draw_vertex(v2);
         }
         glupEnd();
+	edges_filter_.end();
     }
 
     void MeshGfx::draw_edges_immediate_attrib() {
+	edges_filter_.begin(mesh_->edges.attributes(), false);
         begin_attributes();
         if(attribute_subelements_ == MESH_VERTICES) {
             glupBegin(GLUP_LINES);
             for(index_t e: mesh_->edges) {
+		if(!edges_filter_.test(e)) {
+		    continue;
+		}
                 index_t v1 = mesh_->edges.vertex(e,0);
                 index_t v2 = mesh_->edges.vertex(e,1);
                 draw_vertex_with_attribute(v1);
@@ -383,6 +395,9 @@ namespace GEO {
         } else if(attribute_subelements_ == MESH_EDGES) {
             glupBegin(GLUP_LINES);
             for(index_t e: mesh_->edges) {
+		if(!edges_filter_.test(e)) {
+		    continue;
+		}
                 index_t v1 = mesh_->edges.vertex(e,0);
                 index_t v2 = mesh_->edges.vertex(e,1);
                 draw_attribute_as_tex_coord(e);
@@ -392,7 +407,34 @@ namespace GEO {
             glupEnd();
         }
         end_attributes();
+	edges_filter_.end();
     }
+
+    void MeshGfx::draw_edges_picking_filter() {
+	index_t cur_picking_id = 0;
+	edges_filter_.begin(mesh_->edges.attributes(), false);
+	glupBegin(GLUP_LINES);
+        for(index_t e: mesh_->edges) {
+	    if(!edges_filter_.test(e)) {
+		continue;
+	    }
+	    if(cur_picking_id != e) {
+		glupEnd();
+		glupBasePickingId(e);
+		cur_picking_id = e;
+		glupBegin(GLUP_LINES);
+	    }
+            index_t v1 = mesh_->edges.vertex(e,0);
+            index_t v2 = mesh_->edges.vertex(e,1);
+            draw_vertex(v1);
+            draw_vertex(v2);
+	    ++cur_picking_id;
+        }
+	glupEnd();
+	edges_filter_.end();
+	glupBasePickingId(0);
+    }
+
 
     void MeshGfx::draw_edges() {
         if(mesh_ == nullptr || mesh_->edges.nb() == 0) {
@@ -402,12 +444,19 @@ namespace GEO {
         set_GLUP_parameters();
         // TODO: maybe reactivate if we implement nice shaded cylinders
         glupDisable(GLUP_LIGHTING);
-        set_GLUP_picking(MESH_EDGES);
+        set_GLUP_picking(MESH_EDGES); // HERE
         update_buffer_objects_if_needed();
 
         glupSetColor4fv(GLUP_FRONT_COLOR, mesh_color_);
         glupSetMeshWidth(GLUPint(mesh_width_));
-        if(can_use_array_mode(GLUP_LINES) && edges_VAO_ != 0) {
+
+	if(
+	    glupIsEnabled(GLUP_PICKING) &&
+	    glupGetPickingMode() == GLUP_PICK_PRIMITIVE &&
+	    edges_filter_.attribute_name != ""
+	) {
+	    draw_edges_picking_filter();
+	} else if(can_use_array_mode(GLUP_LINES) && edges_VAO_ != 0) {
             draw_edges_array();
         } else {
             if(attribute_subelements_ == MESH_VERTICES ||
@@ -801,7 +850,7 @@ namespace GEO {
         if(picking_mode_ != MESH_NONE) {
             picking_vertex_colors = (
                 (picking_mode_ & MESH_FACETS) != 0 &&
-                object_picking_id_ == index_t(-1)
+                object_picking_id_ == NO_INDEX
             );
             set_GLUP_vertex_color_from_picking_id(object_picking_id_);
         }
@@ -1266,6 +1315,7 @@ namespace GEO {
         buffer_objects_dirty_ = true;
         attributes_buffer_objects_dirty_ = true;
         vertices_filter_.dirty = true;
+	edges_filter_.dirty = true;
         facets_filter_.dirty = true;
         cells_filter_.dirty = true;
 	vertices_selection_filter_.dirty = true;
@@ -1293,12 +1343,12 @@ namespace GEO {
     }
 
     void MeshGfx::set_GLUP_picking(MeshElementsFlags what) {
-        if(picking_mode_ == MESH_NONE && object_picking_id_ == index_t(-1)) {
+        if(picking_mode_ == MESH_NONE && object_picking_id_ == NO_INDEX) {
             glupDisable(GLUP_PICKING);
         } else {
             glupEnable(GLUP_PICKING);
             if(
-                (object_picking_id_ == index_t(-1)) &&
+                (object_picking_id_ == NO_INDEX) &&
                 ((picking_mode_ & what) != 0)
             ) {
                 glupPickingMode(GLUP_PICK_PRIMITIVE);
@@ -1779,6 +1829,13 @@ namespace GEO {
                 vertices_filter_.deallocate();
             }
             break;
+        case MESH_EDGES:
+            edges_filter_.attribute_name = name;
+            edges_filter_.dirty = true;
+            if(name == "") {
+                edges_filter_.deallocate();
+            }
+            break;
         case MESH_FACETS:
             facets_filter_.attribute_name = name;
             facets_filter_.dirty = true;
@@ -1799,7 +1856,6 @@ namespace GEO {
             set_filter(MESH_CELLS, name);
             break;
         case MESH_NONE:
-        case MESH_EDGES:
         case MESH_FACET_CORNERS:
         case MESH_CELL_CORNERS:
         case MESH_CELL_FACETS:

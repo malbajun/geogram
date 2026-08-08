@@ -12,6 +12,7 @@ if(GEOGRAM_WITH_GEOGRAMPLUS)
       geogramplus PRIVATE
       ${PROJECT_SOURCE_DIR}/src/lib/geogram/
    )
+   install_devkit_targets(mini-gmp-plus)
    if(GEOGRAM_WITH_THIRD_PARTIES)
       target_include_directories(${PROJECT_SOURCE_DIR}/src/lib/geogram/geogramplus/third_party)
    endif()

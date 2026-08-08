@@ -245,18 +245,6 @@ namespace GEO {
     }
 
     /**
-     * \brief Specifies whether coordinates should be normalized during
-     *  computation. If set, original coordinates are restored at the
-     *  end of intersect().
-     * \param[in] x true if coordinates should be normalized. Default is
-     *  set.
-     */
-    void set_normalize(bool x) {
-        normalize_ = x;
-    }
-
-
-    /**
      * \brief Optionally save the skeleton (that is, the collection of
      *  non-manifold edges) to a given mesh. This option is not compatible
      *  with dry_run (throws an assertion fail if set).
@@ -467,7 +455,7 @@ namespace GEO {
      * \retval true otherwise
      */
     bool initial_facet_is_flipped(index_t f) const {
-	return f_is_flipped_[f];
+	return !f_is_flipped_.is_bound() || f_is_flipped_[f];
     }
 
     /**
@@ -488,7 +476,7 @@ namespace GEO {
 	vec3 p1 = mesh_copy_.facets.point(orig_f,0);
 	vec3 p2 = mesh_copy_.facets.point(orig_f,1);
 	vec3 p3 = mesh_copy_.facets.point(orig_f,2);
-	if(f_is_flipped_[f]) {
+	if(initial_facet_is_flipped(f)) {
 	    std::swap(p1,p3);
 	}
 	return std::make_tuple(p1,p2,p3);
@@ -608,10 +596,6 @@ namespace GEO {
     bool use_radial_sort_;
 
     PCK::SOSMode SOS_bkp_;
-    bool rescale_;
-    bool normalize_;
-    vec3 normalize_center_;
-    double normalize_radius_;
 
     index_t monster_threshold_;
     bool dry_run_;
@@ -622,6 +606,7 @@ namespace GEO {
     bool skeleton_trim_fins_;
     bool interpolate_attributes_;
 
+    bool has_operand_bits_;
     /***************************************************/
 
     /**
