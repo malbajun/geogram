@@ -32,7 +32,7 @@ if(GEOGRAM_WITH_THIRD_PARTIES)
 
    # ImGuiColorTextEdit_geogram
    target_include_directories(geogram PRIVATE "${PROJECT_SOURCE_DIR}/src/lib/geogram_gfx/third_party/ImGuiColorTextEdit_geogram")
-else()
+else(GEOGRAM_WITH_THIRD_PARTIES)
    # from 3rdparty since autogenerate the glad project is too complex
    aux_source_directories(SOURCES "Source Files\\third_party\\glad"      third_party/glad)
 
