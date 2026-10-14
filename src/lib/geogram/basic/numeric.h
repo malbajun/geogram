@@ -41,6 +41,7 @@
 #define GEOGRAM_BASIC_NUMERIC
 
 #include <geogram/basic/common.h>
+#include <geogram/basic/assert.h>
 #include <cmath>
 #include <float.h>
 #include <limits.h>
@@ -48,6 +49,8 @@
 #include <stdint.h>
 #include <limits>
 #include <type_traits>
+#include <iostream>
+#include <cstdlib>
 
 #ifndef M_PI
 /**
@@ -401,5 +404,52 @@ namespace GEO {
 
     /************************************************************************/
 }
+
+
+/************* Disable floating point contraction **************************/
+
+/**
+ * \brief add GEO_FP_CONTRACT_OFF at the beginning of files or functions
+ *  where FMA operations should not be generated in place of a*b+c
+ * \details it is important for instance for geometric predicates, that
+ *  rely on strict IEEE754 implementation of product and addition.
+ */
+
+#if defined(GOMGEN)
+#  define GEO_FP_CONTRACT_OFF(x)
+#elif defined(__clang__)
+#  define GEO_FP_CONTRACT_OFF _Pragma("clang fp contract(off)")
+#elif defined(_MSC_VER)
+#  define GEO_FP_CONTRACT_OFF _Pragma("fp_contract(off)")
+#elif defined(__GNUC__)
+
+// GCC does not have any pragma to deactivate FMA generation,
+// so instead we check that they are deactivated (by the command-line
+// option -ffp-contract=off) and fire an assertion fail if it was not
+// the case.
+struct GeoAssertNoFpContract {
+    GeoAssertNoFpContract() {
+#ifdef GEOGRAM_PSM
+	if(fp_contraction_enabled()) {
+	    std::cerr << "Needs to be compiled with -ffp-contract-off"
+		      << std::endl;
+	    abort();
+	}
+#else
+	geo_assert(!fp_contraction_enabled());
+#endif
+    }
+    static bool fp_contraction_enabled() {
+	return (a2plusb(0x1.0000002p0, -0x1.0000004p0) != 0.0);
+    }
+    __attribute__((noipa)) static double a2plusb(double a, double b) {
+	return a * a + b;
+    }
+};
+#  define GEO_FP_CONTRACT_OFF \
+    static GeoAssertNoFpContract CPP_CONCAT(assert_no_fp_contract_,__LINE__);
+#else
+#  define GEO_FP_CONTRACT_OFF _Pragma("STDC FP_CONTRACT OFF")
+#endif
 
 #endif
