@@ -1,0 +1,53 @@
+name: ALT Geogram gear-hsh
+
+on:
+  push:
+    branches: ['ci/geogram-alt-1.10.1*', packaging/alt]
+    paths:
+      - .github/workflows/alt-hasher.yml
+      - ci/alt-hasher/**
+      - .gear/**
+      - CMakeLists.txt
+      - cmake/**
+      - src/**
+      - tests/standalone-text-editor/**
+      - doc/CMakeLists.txt
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: geogram-alt-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    steps:
+      - name: Checkout trusted packaging branch
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - name: Build all RPMs through gear-hsh and test installed packages
+        env:
+          ALT_HASHER_BUILD_PACKAGES: '1'
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/alt-hasher
+          bash ci/alt-hasher/run.sh 2>&1 | tee artifacts/alt-hasher/runner.log
+      - name: Verify real RPM outputs and consumer evidence
+        if: always()
+        run: python3 ci/alt-hasher/evidence.py
+      - name: Report failure diagnostics
+        if: failure()
+        run: python3 ci/alt-hasher/report.py
+      - name: Save RPMs and build records
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: geogram-alt-hasher-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/alt-hasher/
+          if-no-files-found: error
+          retention-days: 14
