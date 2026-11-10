@@ -2,7 +2,6 @@ include(${PROJECT_SOURCE_DIR}/cmake/opengl.cmake)
 
 set(GEOGRAMGFX_INCLUDE_SUBPATH ${GEOGRAMGFX_SYSTEM_NAME} CACHE PATH "Header install subpath for geogram gfx")
 configure_file(basic/config.h.in basic/config.h)
-include_directories(${PROJECT_BINARY_DIR}/src/lib)
 foreach(component devkit devkit-full)
   install(FILES "${CMAKE_CURRENT_BINARY_DIR}/basic/config.h"
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${GEOGRAMGFX_INCLUDE_SUBPATH}/basic
@@ -61,6 +60,8 @@ else()
   aux_source_directories(SOURCES "Source Files\\third_party\\glad" third_party/glad)
 endif()
 add_library(geogram_gfx ${SOURCES})
+target_include_directories(geogram_gfx PUBLIC
+  $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/src/lib>)
 
 if(GEOGRAM_USE_SYSTEM_TEXT_EDITOR)
   target_link_libraries(geogram_gfx ImGuiColorTextEdit::ImGuiColorTextEdit)

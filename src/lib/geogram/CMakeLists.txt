@@ -58,7 +58,6 @@ configure_file(basic/version.h.in version.h @ONLY)
 list(APPEND SOURCES version.h)
 set_source_files_properties(version.h PROPERTIES GENERATED true)
 
-include_directories(${PROJECT_BINARY_DIR}/src/lib)
 
 add_library(geogram ${SOURCES})
 
@@ -148,7 +147,9 @@ endif()
 # path for targets that depend on geogram.
 # See: https://cmake.org/cmake/help/v3.3/command/target_include_directories.html
 # https://stackoverflow.com/questions/26243169/cmake-target-include-directories-meaning-of-scope
-target_include_directories(geogram PUBLIC ${PROJECT_SOURCE_DIR}/src/lib)
+target_include_directories(geogram PUBLIC
+  ${PROJECT_SOURCE_DIR}/src/lib
+  $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/src/lib>)
 
 if(ANDROID)
 target_include_directories(geogram PRIVATE
