@@ -22,31 +22,31 @@ BuildRequires: ctest
 BuildRequires: pkg-config
 BuildRequires: hostinfo
 BuildRequires: gcc-c++
-BuildRequires: liblua5.4-devel
-#BuildRequires: libexploragram-devel
-#BuildRequires: libhlbfgs-devel
-BuildRequires: libglfw3-devel
-BuildRequires: libdnet-devel
-BuildRequires: libgomp-devel
-BuildRequires: libGLU-devel
-BuildRequires: libXxf86vm-devel
-BuildRequires: libXcursor-devel
-BuildRequires: libXinerama-devel
-BuildRequires: libXi-devel
-BuildRequires: libXrandr-devel
-BuildRequires: libimgui-devel >= 1.93.0
-BuildRequires: libImGuiColorTextEdit-devel >= 1.93.0
-BuildRequires: librply-devel
-BuildRequires: libmeshb-devel
+BuildRequires: cmake(imgui)
+BuildRequires: cmake(ImGuiColorTextEdit)
+BuildRequires: pkgconfig(glfw3)
+BuildRequires: pkgconfig(glu)
+BuildRequires: pkgconfig(lua-5.4)
+BuildRequires: pkgconfig(stb)
+BuildRequires: pkgconfig(tbb)
+BuildRequires: pkgconfig(xcursor)
+BuildRequires: pkgconfig(xi)
+BuildRequires: pkgconfig(xinerama)
+BuildRequires: pkgconfig(xrandr)
+BuildRequires: pkgconfig(xxf86vm)
+BuildRequires: pkgconfig(zlib)
 BuildRequires: amgcl-devel
-BuildRequires: tbb-devel
-BuildRequires: libxatlas-devel
+BuildRequires: libann-devel
+BuildRequires: libdnet-devel
+#BuildRequires: libexploragram-devel
+BuildRequires: libgomp-devel
+#BuildRequires: libhlbfgs-devel
+BuildRequires: libmeshb-devel
+BuildRequires: libopennl-devel
+BuildRequires: librply-devel
 BuildRequires: libtetgen-devel
 BuildRequires: libtriangle-devel
-BuildRequires: zlib-devel
-BuildRequires: libopennl-devel
-BuildRequires: libann-devel
-BuildRequires: libstb-devel
+BuildRequires: libxatlas-devel
 
 %description
 Geogram is a programming library of geometric algorithms. It includes a simple
@@ -84,19 +84,29 @@ Summary:       Development files for %name
 
 Requires:      lib%{name} = %EVR
 Requires:      cmake
-Requires:      libopennl-devel
-Requires:      libtetgen-devel
-Requires:      libtriangle-devel
-Requires:      liblua5.4-devel
-Requires:      libglfw3-devel
+Requires:      cmake(imgui)
+Requires:      cmake(ImGuiColorTextEdit)
+Requires:      pkgconfig(glfw3)
+Requires:      pkgconfig(glu)
+Requires:      pkgconfig(lua-5.4)
+Requires:      pkgconfig(stb)
+Requires:      pkgconfig(tbb)
+Requires:      pkgconfig(xcursor)
+Requires:      pkgconfig(xi)
+Requires:      pkgconfig(xinerama)
+Requires:      pkgconfig(xrandr)
+Requires:      pkgconfig(xxf86vm)
+Requires:      pkgconfig(zlib)
+Requires:      amgcl-devel
+Requires:      libann-devel
 Requires:      libdnet-devel
 Requires:      libgomp-devel
-Requires:      libGLU-devel
-Requires:      libXxf86vm-devel
-Requires:      libXcursor-devel
-Requires:      libXinerama-devel
-Requires:      libXi-devel
-Requires:      libXrandr-devel
+Requires:      libmeshb-devel
+Requires:      libopennl-devel
+Requires:      librply-devel
+Requires:      libtetgen-devel
+Requires:      libtriangle-devel
+Requires:      libxatlas-devel
 
 %description   -n lib%{name}-devel
 Geogram is a programming library of geometric algorithms. It includes a simple
@@ -133,10 +143,9 @@ Group:         Development/C++
 Summary:       Development files for %name
 
 Requires:      lib%{name}-gfx = %EVR
-Requires:      lib%{name}-devel = %EVR
-Requires:      libImGuiColorTextEdit-devel >= 1.93.0
-Requires:      libimgui-devel >= 1.93.0
+Requires:      cmake(imgui)
 Requires:      cmake(ImGuiColorTextEdit)
+Requires:      pkgconfig(%{name})
 
 %description   -n lib%{name}-gfx-devel
 Geogram is a programming library of geometric algorithms. It includes a simple
@@ -180,6 +189,8 @@ Transport in 3d that scales up to 1 million Dirac masses.
        -DGEOGRAM_USE_SYSTEM_GLFW3:BOOL=ON \
        -DGEOGRAM_USE_SYSTEM_TEXT_EDITOR:BOOL=ON \
        -DGEOGRAM_LIB_ONLY:BOOL=OFF \
+       -DGEOGRAM_TEST_INSTALL_PREFIX=%buildroot%_prefix \
+       -DGEOGRAM_TEST_BUILD_JOBS=${NPROCS:-%__nprocs} \
        -DGEOGRAM_WITH_HLBFGS:BOOL=OFF \
        -DGEOGRAM_WITH_LUA:BOOL=OFF \
        -DGEOGRAM_WITH_THIRD_PARTIES:BOOL=OFF \
@@ -199,14 +210,7 @@ Transport in 3d that scales up to 1 million Dirac masses.
 
 
 %check
-cmake -S tests/standalone-text-editor -B rpm-consumer \
-   -DGEOGRAM_INSTALL_PREFIX=%buildroot%_prefix \
-   -DCMAKE_MODULE_PATH=%buildroot%_cmakedir/modules \
-   -DGEOGRAM_CHECK_GEOMETRY=ON \
-   -DGEOGRAM_CHECK_LUA=OFF
-cmake --build rpm-consumer -- %_smp_mflags
-LD_LIBRARY_PATH=%buildroot%_libdir${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH} \
-   ctest --test-dir rpm-consumer --output-on-failure
+%ctest
 
 
 %files
@@ -248,6 +252,10 @@ LD_LIBRARY_PATH=%buildroot%_libdir${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH} \
 - + standalone ImGuiColorTextEdit support
 - * build dependencies for the Geogram-enabled editor and compatible ImGui
 - + CTest checks for installed editor, OpenNL, TetGen and Triangle integration
+- * run %%check through %%ctest with consumer preparation handled by CMake
+- * use unversioned CMake and pkg-config dependencies where RPM provides them
+- * group development dependencies by type and sort them alphabetically
+- * synchronize development dependencies with build requirements
 
 * Sat Aug 08 2026 Pavel Skrylev <majioa@altlinux.org> 1.10.0-alt1
 - ^ 1.9.9p21.2 -> 1.10.0
