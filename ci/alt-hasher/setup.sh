@@ -12,7 +12,7 @@ fi
 # Use a mirror of the same signed Sisyphus repository. The primary server can
 # throttle downloads enough to exhaust the job before initroot completes.
 # Keep ALT's keyring, [alt] source tags and package verification enabled.
-sed -i 's@http://ftp.altlinux.org/pub/distributions/ALTLinux@http://mirror.truenetwork.ru/altlinux@g' \
+sed -i 's@http://ftp.altlinux.org/pub/distributions/ALTLinux@http://mirror.yandex.ru/altlinux@g' \
     /etc/apt/sources.list.d/alt.list
 printf '%s\n' 'Acquire::http::No-Cache "true";' \
     > /etc/apt/apt.conf.d/99-ci-repository-cache
