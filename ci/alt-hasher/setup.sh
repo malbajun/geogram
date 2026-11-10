@@ -15,7 +15,8 @@ fi
 sed -i 's@http://ftp.altlinux.org/pub/distributions/ALTLinux@http://mirror.yandex.ru/altlinux@g' \
     /etc/apt/sources.list.d/alt.list
 printf '%s\n' 'Acquire::http::No-Cache "true";' \
-    > /etc/apt/apt.conf.d/99-ci-repository-cache
+    > /etc/apt/apt.conf.d/99-ci-repository-cache.conf
+apt-config dump | grep -q '^Acquire::http::No-Cache "true";$'
 apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=40 update
 apt-get -y -o Acquire::Retries=2 -o Acquire::http::Timeout=40 \
     install gear hasher hasher-priv util-linux

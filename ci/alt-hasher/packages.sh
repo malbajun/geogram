@@ -35,7 +35,7 @@ for package in imgui editor geogram; do
     (
         cd "/home/builder/$package"
         gear-hsh --workdir="$workdir" --nprocs=4 --mountpoints=/proc \
-            --apt-config=/etc/apt/apt.conf.d/99-ci-repository-cache \
+            --apt-config=/etc/apt/apt.conf.d/99-ci-repository-cache.conf \
             --packager="$packager" --verbose
     ) 2>&1 | tee "/results/$package-build.log"
     printf '::notice title=ALT build stage::Completed gear-hsh: %s\n' "$package"
