@@ -7,21 +7,22 @@
 %endif
 
 Name:          geogram
-Version:       1.10.0
+Version:       1.10.1
 Release:       alt1
 Summary:       Geogram library by INRIA
-License:       BSD-3-Clause
+License:       BSD-3-Clause AND MIT
 Group:         Sciences/Mathematics
 Url:           https://brunolevy.github.io/geogram/
 Vcs:           https://github.com/BrunoLevy/geogram.git
 
 Source:        %name-%version.tar
-BuildRequires(pre): rpm-macros-cmake
+BuildRequires(pre): rpm-build-cmake
 BuildRequires: cmake
+BuildRequires: ctest
+BuildRequires: pkg-config
 BuildRequires: hostinfo
 BuildRequires: gcc-c++
-BuildRequires: doxygen
-BuildRequires: liblua5.3-devel
+BuildRequires: liblua5.4-devel
 #BuildRequires: libexploragram-devel
 #BuildRequires: libhlbfgs-devel
 BuildRequires: libglfw3-devel
@@ -32,10 +33,9 @@ BuildRequires: libXxf86vm-devel
 BuildRequires: libXcursor-devel
 BuildRequires: libXinerama-devel
 BuildRequires: libXi-devel
-BuildRequires: libGLU-devel
 BuildRequires: libXrandr-devel
-BuildRequires: libimgui-devel
-BuildRequires: libImGuiColorTextEdit-devel
+BuildRequires: libimgui-devel >= 1.93.0
+BuildRequires: libImGuiColorTextEdit-devel >= 1.93.0
 BuildRequires: librply-devel
 BuildRequires: libmeshb-devel
 BuildRequires: amgcl-devel
@@ -45,6 +45,8 @@ BuildRequires: libtetgen-devel
 BuildRequires: libtriangle-devel
 BuildRequires: zlib-devel
 BuildRequires: libopennl-devel
+BuildRequires: libann-devel
+BuildRequires: libstb-devel
 
 %description
 Geogram is a programming library of geometric algorithms. It includes a simple
@@ -82,12 +84,10 @@ Summary:       Development files for %name
 
 Requires:      lib%{name} = %EVR
 Requires:      cmake
-Requires:      hostinfo
-Requires:      gcc-c++
-Requires:      doxygen
+Requires:      libopennl-devel
 Requires:      libtetgen-devel
 Requires:      libtriangle-devel
-Requires:      liblua5.3-devel
+Requires:      liblua5.4-devel
 Requires:      libglfw3-devel
 Requires:      libdnet-devel
 Requires:      libgomp-devel
@@ -96,7 +96,6 @@ Requires:      libXxf86vm-devel
 Requires:      libXcursor-devel
 Requires:      libXinerama-devel
 Requires:      libXi-devel
-Requires:      libGLU-devel
 Requires:      libXrandr-devel
 
 %description   -n lib%{name}-devel
@@ -135,6 +134,9 @@ Summary:       Development files for %name
 
 Requires:      lib%{name}-gfx = %EVR
 Requires:      lib%{name}-devel = %EVR
+Requires:      libImGuiColorTextEdit-devel >= 1.93.0
+Requires:      libimgui-devel >= 1.93.0
+Requires:      cmake(ImGuiColorTextEdit)
 
 %description   -n lib%{name}-gfx-devel
 Geogram is a programming library of geometric algorithms. It includes a simple
@@ -176,8 +178,9 @@ Transport in 3d that scales up to 1 million Dirac masses.
        -DGEOGRAMGFX_SYSTEM_NAME=%{name}_gfx \
        -DVORPALINE_BUILD_DYNAMIC:BOOL=ON \
        -DGEOGRAM_USE_SYSTEM_GLFW3:BOOL=ON \
+       -DGEOGRAM_USE_SYSTEM_TEXT_EDITOR:BOOL=ON \
+       -DGEOGRAM_LIB_ONLY:BOOL=OFF \
        -DGEOGRAM_WITH_HLBFGS:BOOL=OFF \
-       -DVORPALINE_VERSION_RC:BOOL=OFF \
        -DGEOGRAM_WITH_LUA:BOOL=OFF \
        -DGEOGRAM_WITH_THIRD_PARTIES:BOOL=OFF \
        -DGEOGRAM_WITH_TBB=ON \
@@ -192,7 +195,18 @@ Transport in 3d that scales up to 1 million Dirac masses.
 %cmake_build %{?_enable_legacy_numeric:-j1}
 
 %install
-%cmakeinstall_std
+%cmake_install
+
+
+%check
+cmake -S tests/standalone-text-editor -B rpm-consumer \
+   -DGEOGRAM_INSTALL_PREFIX=%buildroot%_prefix \
+   -DCMAKE_MODULE_PATH=%buildroot%_cmakedir/modules \
+   -DGEOGRAM_CHECK_GEOMETRY=ON \
+   -DGEOGRAM_CHECK_LUA=OFF
+cmake --build rpm-consumer -- %_smp_mflags
+LD_LIBRARY_PATH=%buildroot%_libdir${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH} \
+   ctest --test-dir rpm-consumer --output-on-failure
 
 
 %files
@@ -211,23 +225,30 @@ Transport in 3d that scales up to 1 million Dirac masses.
 %endif
 
 %files         -n lib%{name}-gfx
+%doc src/lib/geogram_gfx/imgui_ext/IMGUI_STDLIB_LICENSE.txt
 %_libdir/lib%{name}_gfx*.so.*
 
 %files         -n lib%{name}-devel
 %_includedir/%{name}/
-%_libdir/cmake/*
+%_cmakedir/modules/FindGeogram.cmake
 %_pkgconfigdir/%{name}.pc
 %_libdir/lib%{name}.*so
 %if_enabled legacy_numeric
 %_libdir/lib%{name}_num*.so
 %endif
-   
+
 %files         -n lib%{name}-gfx-devel
 %_includedir/%{name}_gfx/
 %_pkgconfigdir/%{name}_gfx.pc
 %_libdir/lib%{name}_gfx*.so
 
 %changelog
+* Tue Nov 10 2026 Pavel Skrylev <majioa@altlinux.org> 1.10.1-alt1
+- ^ 1.10.0 -> 1.10.1
+- + standalone ImGuiColorTextEdit support
+- * build dependencies for the Geogram-enabled editor and compatible ImGui
+- + CTest checks for installed editor, OpenNL, TetGen and Triangle integration
+
 * Sat Aug 08 2026 Pavel Skrylev <majioa@altlinux.org> 1.10.0-alt1
 - ^ 1.9.9p21.2 -> 1.10.0
 
