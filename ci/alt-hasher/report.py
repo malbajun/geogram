@@ -5,6 +5,8 @@ from pathlib import Path
 results = Path("artifacts/alt-hasher")
 for name in (
     "docker-security.json", "runner.log", "setup.log", "smoke.log",
+    "user-smoke.sh.log", "user-packages.sh.log", "user-consumer.sh.log",
+    "builder-cgroup.txt", "tool-versions.txt", "input-revisions.txt",
     "imgui-build.log", "editor-build.log", "geogram-build.log",
     "install.log", "consumer.log", "hasher-privd.log",
     "geogram-dependencies.log", "geogram.log", "geogram-configure.log",
