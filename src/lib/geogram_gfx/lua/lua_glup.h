@@ -45,7 +45,7 @@
 extern "C" {
 #endif
 
-#include <geogram/third_party/lua/lua.h>
+#include <geogram/lua/lua.h>
 
 /**
  * \file geogram_gfx/glup_viewer/glup_viewer_lua.h
