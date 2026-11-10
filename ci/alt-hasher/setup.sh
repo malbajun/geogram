@@ -17,9 +17,19 @@ sed -i 's@http://ftp.altlinux.org/pub/distributions/ALTLinux@http://mirror.yande
 printf '%s\n' 'Acquire::http::No-Cache "true";' \
     > /etc/apt/apt.conf.d/99-ci-repository-cache.conf
 apt-config dump | grep -q '^Acquire::http::No-Cache "true";$'
-apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=40 update
+for attempt in 1 2 3; do
+    if apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=40 update; then
+        break
+    fi
+    test "$attempt" -lt 3 || exit 1
+    sleep 5
+done
 apt-get -y -o Acquire::Retries=2 -o Acquire::http::Timeout=40 \
-    install gear hasher hasher-priv util-linux
+    install gear hasher hasher-priv util-linux ca-certificates
+# Bootstrap the trust store first, then keep hasher's repository requests on
+# HTTPS so intermediate HTTP caches cannot mix different mirror snapshots.
+sed -i 's@http://mirror.yandex.ru@https://mirror.yandex.ru@g' \
+    /etc/apt/sources.list.d/alt.list
 rpm -q gear hasher hasher-priv > /results/tool-versions.txt
 
 useradd --create-home --uid "${ALT_BUILDER_UID:-1000}" builder
