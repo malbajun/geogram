@@ -15,6 +15,7 @@ collect() {
 }
 trap collect EXIT
 
+printf '%s\n' '::notice title=ALT build stage::Fetching package repositories'
 git clone --single-branch --branch sis_in --no-recurse-submodules \
     https://git.altlinux.org/people/majioa/packages/libimgui.git /home/builder/imgui
 git clone --single-branch --branch packaging/alt --no-recurse-submodules \
@@ -30,10 +31,12 @@ git -c safe.directory=/sources clone --no-hardlinks --no-recurse-submodules \
 # Each package is built in hasher; the same local RPM repository supplies the
 # dependency chain. The maintainer ImGui source and spec are never modified.
 for package in imgui editor geogram; do
+    printf '::notice title=ALT build stage::gear-hsh: %s\n' "$package"
     (
         cd "/home/builder/$package"
         gear-hsh --workdir="$workdir" --nprocs=4 --mountpoints=/proc \
             --packager="$packager" --verbose
     ) 2>&1 | tee "/results/$package-build.log"
+    printf '::notice title=ALT build stage::Completed gear-hsh: %s\n' "$package"
 done
 printf '%s\n' 'All three projects built through gear-hsh.' > /results/rpm-builds.ok

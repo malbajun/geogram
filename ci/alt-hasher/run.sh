@@ -40,8 +40,10 @@ docker run --detach --name "$container" --privileged --cgroupns=private \
     --mount "type=bind,src=$source_dir,dst=/sources,readonly" \
     --mount "type=bind,src=$results_dir,dst=/results" \
     "$image" sleep infinity
+printf '%s\n' '::notice title=ALT build stage::Installing hasher tools'
 docker exec "$container" bash /sources/ci/alt-hasher/setup.sh \
     2>&1 | tee "$results_dir/setup.log"
+printf '%s\n' '::notice title=ALT build stage::Initializing hasher root'
 docker exec --workdir /home/builder "$container" \
     bash /sources/ci/alt-hasher/as-builder.sh /sources/ci/alt-hasher/smoke.sh \
     2>&1 | tee "$results_dir/smoke.log"
