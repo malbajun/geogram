@@ -1,0 +1,27 @@
+# Run after installation, so the consumer uses the staged development files.
+set(prefix [==[@GEOGRAM_TEST_INSTALL_PREFIX@]==])
+set(consumer [==[@PROJECT_BINARY_DIR@/rpm-consumer]==])
+set(module_dir "${prefix}/@GEOGRAM_TEST_MODULE_DIR@")
+if(NOT EXISTS "${module_dir}/FindGeogram.cmake")
+    message(FATAL_ERROR "No installed FindGeogram.cmake in ${module_dir}")
+endif()
+
+function(run_checked)
+    execute_process(COMMAND ${ARGV} RESULT_VARIABLE result)
+    if(NOT "${result}" STREQUAL "0")
+        message(FATAL_ERROR "Installed consumer check failed (${result}): ${ARGV}")
+    endif()
+endfunction()
+
+run_checked("@CMAKE_COMMAND@"
+    -S [==[@PROJECT_SOURCE_DIR@/tests/standalone-text-editor]==] -B "${consumer}"
+    "-DGEOGRAM_INSTALL_PREFIX=${prefix}" "-DCMAKE_MODULE_PATH=${module_dir}"
+    -DGEOGRAM_CHECK_GEOMETRY=ON -DGEOGRAM_CHECK_LUA=OFF)
+run_checked("@CMAKE_COMMAND@" --build "${consumer}" --parallel @GEOGRAM_TEST_BUILD_JOBS@)
+
+set(library_path "${prefix}/@GEOGRAM_TEST_LIBDIR@")
+if(NOT "$ENV{LD_LIBRARY_PATH}" STREQUAL "")
+    string(APPEND library_path ":$ENV{LD_LIBRARY_PATH}")
+endif()
+set(ENV{LD_LIBRARY_PATH} "${library_path}")
+run_checked("@CMAKE_CTEST_COMMAND@" --test-dir "${consumer}" --output-on-failure)
