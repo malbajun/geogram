@@ -1,0 +1,5 @@
+#pragma once
+
+// Installed CMake consumers must use the same dependency mode as the library.
+#cmakedefine GEOGRAM_USE_BUILTIN_DEPS 1
+#cmakedefine GEOGRAM_WITH_LUA 1

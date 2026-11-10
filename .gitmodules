@@ -4,6 +4,10 @@
 [submodule "src/lib/third_party/glfw"]
 	path = src/lib/third_party/glfw
 	url = https://github.com/glfw/glfw.git
+[submodule "src/lib/geogram_gfx/third_party/imgui"]
+	path = src/lib/geogram_gfx/third_party/imgui
+	url = https://github.com/ocornut/imgui.git
+	branch = docking
 [submodule "src/lib/geogram/third_party/libMeshb"]
 	path = src/lib/geogram/third_party/libMeshb
 	url = https://github.com/LoicMarechal/libMeshb.git

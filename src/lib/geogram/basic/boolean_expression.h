@@ -76,39 +76,20 @@ namespace GEO {
      * \param[in] x the different bits of x correspond to
      *  the variables A..Z or x0..x31.
      */
-    bool operator()(index_t x) const;
+    bool operator()(index_t x);
 
     protected:
-
-    /**
-     * \brief Stores the state of a current parsing operation
-     */
-    struct Context {
-	Context(
-	    const std::string& E, index_t x
-	) : ptr_(E.begin()), end_(E.end()), x_(x) {
-	}
-	char cur_char() const {
-	    return (ptr_ == end_) ? '\0' : *ptr_;
-	}
-	void next_char() {
-	    if(ptr_ == end_) {
-		throw std::logic_error("Unexpected end of string");
-	    }
-	    ptr_++;
-	}
-	std::string::const_iterator ptr_;
-	std::string::const_iterator end_;
-	index_t x_;
-    };
-
-    bool parse_or(Context& C) const;
-    bool parse_and(Context& C) const;
-    bool parse_factor(Context& C) const;
-    bool parse_variable(Context& C) const;
+    bool parse_or();
+    bool parse_and();
+    bool parse_factor();
+    bool parse_variable();
+    char cur_char() const;
+    void next_char();
 
     private:
     std::string expr_;
+    std::string::iterator ptr_;
+    index_t x_;
     };
 
 

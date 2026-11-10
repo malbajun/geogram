@@ -54,7 +54,13 @@
 #define REAL double
 #define ANSI_DECLARATORS
 #define VOID void
+#ifdef GEOGRAM_USE_BUILTIN_DEPS
+extern "C" {
+#include <geogram/third_party/triangle/triangle.h>
+}
+#else
 #include <triangle/triangle.h>
+#endif
 
 namespace GEO {
 

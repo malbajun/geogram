@@ -54,8 +54,17 @@
 
 #include <fstream>
 
-#include <rply.h>
+#ifdef GEOGRAM_USE_BUILTIN_DEPS
+extern "C" {
+#include <geogram/third_party/libMeshb/sources/libmeshb7.h>
+}
+#include <geogram/third_party/rply/rply.h>
+#else
+extern "C" {
 #include <libmeshb7.h>
+}
+#include <rply.h>
+#endif
 
 #ifdef GEO_COMPILER_GCC
 #include <cxxabi.h>
@@ -4828,8 +4837,8 @@ namespace GEO {
                     } else if (M.facets.nb_vertices(f) == 4) {
                         type = 3;
                     } else {
-                        geo_assert_not_reached;
-                    }
+                        geo_assert_not_reached
+                            }
                     elt_id += 1;
                     out << elt_id << " " << type << " " << "2" << " "
                         << attr_value << " " << attr_value << " ";

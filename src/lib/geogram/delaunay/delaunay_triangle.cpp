@@ -44,6 +44,10 @@
 #include <geogram/mesh/mesh.h>
 #include <geogram/bibliography/bibliography.h>
 
+#ifndef GEOGRAM_USE_BUILTIN_DEPS
+using triangulo::triangulate;
+#endif
+
 namespace {
 
     /**
@@ -119,7 +123,7 @@ namespace GEO {
         // Q: quiet
         // z: numbering starts from 0
         // n: output neighbors
-        triangulo::triangulate(
+        triangulate(
             const_cast<char*>("Qzn"), &triangle_in_, &triangle_out_, nullptr
         );
         set_arrays(
@@ -152,7 +156,7 @@ namespace GEO {
         // z: numbering starts from 0
         // n: output neighbors
         // p: Planar Straight Line Graph
-        triangulo::triangulate(
+        triangulate(
             const_cast<char*>("Qznp"), &triangle_in_, &triangle_out_, nullptr
         );
 

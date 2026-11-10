@@ -40,13 +40,13 @@ find_path (GEOGRAM_INCLUDE_DIR
 find_library (GEOGRAM_LIBRARY
                 NAMES geogram
                 PATHS ${GEOGRAM_SEARCH_PATHS}
-                PATH_SUFFIXES lib
+                PATH_SUFFIXES lib64 lib
 )
 
 find_library (GEOGRAM_GFX_LIBRARY
                 NAMES geogram_gfx
                 PATHS ${GEOGRAM_SEARCH_PATHS}
-                PATH_SUFFIXES lib
+                PATH_SUFFIXES lib64 lib
 )
 
 # This one we search in both Geogram search path and
@@ -55,7 +55,7 @@ find_library (GEOGRAM_GFX_LIBRARY
 find_library (GEOGRAM_GLFW3_LIBRARY
                 NAMES glfw3 glfw geogram_glfw3 glfw3dll glfwdll
                 PATHS ${GEOGRAM_SEARCH_PATHS} ${GEOGRAM_SEARCH_PATHS_SYSTEM}
-                PATH_SUFFIXES lib
+                PATH_SUFFIXES lib64 lib
 )
 
 include (FindPackageHandleStandardArgs)
@@ -66,7 +66,7 @@ find_package_handle_standard_args(
 # Create an imported target for Geogram 
 If (GEOGRAM_FOUND)
   
-        set(GEOGRAM_INSTALL_PREFIX ${GEOGRAM_INCLUDE_DIR}/../..)
+        get_filename_component(GEOGRAM_INSTALL_PREFIX "${GEOGRAM_INCLUDE_DIR}/.." ABSOLUTE)
   
         if (NOT TARGET Geogram::geogram)
                 add_library (Geogram::geogram UNKNOWN IMPORTED)
@@ -81,6 +81,21 @@ If (GEOGRAM_FOUND)
                   IMPORTED_LINK_INTERFACE_LANGUAGES "CXX"
                   IMPORTED_LOCATION "${GEOGRAM_LIBRARY}"
                 )
+                if(EXISTS "${GEOGRAM_INCLUDE_DIR}/geogram/basic/build_config.h")
+                  file(STRINGS "${GEOGRAM_INCLUDE_DIR}/geogram/basic/build_config.h"
+                    _geogram_builtin REGEX "^#define GEOGRAM_USE_BUILTIN_DEPS")
+                  if(_geogram_builtin)
+                    set_property(TARGET Geogram::geogram APPEND PROPERTY
+                      INTERFACE_COMPILE_DEFINITIONS GEOGRAM_USE_BUILTIN_DEPS)
+                  else()
+                    find_package(OpenNL CONFIG REQUIRED)
+                    find_package(Lua 5.4 REQUIRED)
+                    set_property(TARGET Geogram::geogram APPEND PROPERTY
+                      INTERFACE_LINK_LIBRARIES ${OpenNL_LIBRARIES})
+                    set_property(TARGET Geogram::geogram APPEND PROPERTY
+                      INTERFACE_INCLUDE_DIRECTORIES ${OpenNL_INCLUDE_DIRS} ${LUA_INCLUDE_DIR})
+                  endif()
+                endif()
         endif ()
 
         if (NOT TARGET Geogram::geogram_gfx)
@@ -100,6 +115,18 @@ If (GEOGRAM_FOUND)
                   IMPORTED_LINK_INTERFACE_LANGUAGES "CXX"
                   IMPORTED_LOCATION "${GEOGRAM_GFX_LIBRARY}"
                 )
+
+                if(EXISTS "${GEOGRAM_INCLUDE_DIR}/geogram_gfx/basic/config.h")
+                  file(STRINGS "${GEOGRAM_INCLUDE_DIR}/geogram_gfx/basic/config.h"
+                    _geogram_system_editor REGEX "^#define GEOGRAM_USE_SYSTEM_TEXT_EDITOR")
+                  if(_geogram_system_editor)
+                    find_package(ImGuiColorTextEdit CONFIG REQUIRED)
+                    set_property(TARGET Geogram::geogram_gfx APPEND PROPERTY
+                      INTERFACE_LINK_LIBRARIES ImGuiColorTextEdit::ImGuiColorTextEdit)
+                    set_property(TARGET Geogram::geogram_gfx APPEND PROPERTY
+                      INTERFACE_COMPILE_FEATURES cxx_std_17)
+                  endif()
+                endif()
                 
         endif ()
 

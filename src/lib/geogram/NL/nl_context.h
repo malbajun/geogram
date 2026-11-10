@@ -8,7 +8,11 @@
 extern "C" {
 #endif
 
+#ifdef GEOGRAM_USE_BUILTIN_DEPS
+#include <geogram/third_party/OpenNL/nl_context.h>
+#else
 #include <nl_context.h>
+#endif
 
 #ifdef __cplusplus
 }

@@ -1,5 +1,4 @@
 add_subdirectory(compute_delaunay)
-add_subdirectory(compute_delaunay_periodic)
 add_subdirectory(compute_RVD)
 add_subdirectory(opennl_LSCM)
 add_subdirectory(opennl_mesh_smooth)
@@ -9,4 +8,4 @@ add_subdirectory(simple_raytrace)
 add_subdirectory(boolean_operations)
 add_subdirectory(intersect)
 add_subdirectory(CSG_builder)
-add_subdirectory(bake_map)
+

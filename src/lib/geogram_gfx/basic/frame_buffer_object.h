@@ -83,12 +83,6 @@ namespace GEO {
     );
 
     /**
-     * \brief Destroys this FrameBufferObject
-     * \details deletes the OpenGL textures and OpenGL frame buffer object.
-     */
-    void destroy();
-
-    /**
      * \brief Resizes the FrameBuferObject
      * \param[in] new_width the new width, in pixels
      * \param[in] new_height the new height, in pixels

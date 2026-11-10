@@ -76,8 +76,8 @@ namespace {
     }
 
     /**
-     * \brief Computes the sum of two length 2 expansions
-     *  into a length 4 expansion.
+     * \brief Computes the sum of a length 2 expansion and a double
+     *  into a length 3 expansion.
      * \param[in] a1 high-magnitude component of first argument
      * \param[in] a0 low-magnitude component of first argument
      * \param[in] b1 high-magnitude component of second argument
@@ -545,7 +545,6 @@ namespace GEO {
 
     double expansion_splitter_;
     double expansion_epsilon_;
-    bool expansion_initialized_ = false;
 
     void expansion::initialize() {
         // Taken from Jonathan Shewchuk's exactinit.
@@ -572,7 +571,6 @@ namespace GEO {
             check = 1.0 + expansion_epsilon_;
         } while((check != 1.0) && (check != lastcheck));
         expansion_splitter_ += 1.0;
-	expansion_initialized_ = true;
     }
 
     // ====== Initialization from expansion and double ===============

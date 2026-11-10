@@ -103,7 +103,11 @@ namespace GEO {
         }
 
         Delaunay::set_vertices(nb_vertices, vertices);
+#ifdef GEOGRAM_USE_BUILTIN_DEPS
+        tetgen_out_.deinitialize();
+#else
         tetgen_out_.clean_memory();
+#endif
         tetgen_in_.initialize();
         tetgen_in_.numberofpoints = int(nb_vertices);
         tetgen_in_.pointlist = const_cast<double*>(vertices);
@@ -142,7 +146,11 @@ namespace GEO {
                 << std::endl;
         }
 
+#ifdef GEOGRAM_USE_BUILTIN_DEPS
+        tetgen_out_.deinitialize();
+#else
         tetgen_out_.clean_memory();
+#endif
 
         // Q: quiet
         // p: input data is surfacic
@@ -172,7 +180,11 @@ namespace GEO {
         }
         tetgen_args_.parse_commandline(const_cast<char*>(cmdline.c_str()));
 
+#ifdef GEOGRAM_USE_BUILTIN_DEPS
+        tetgen_in_.deinitialize();
+#else
         tetgen_in_.clean_memory();
+#endif
         tetgen_in_.initialize();
         tetgen_in_.firstnumber = 0 ;
 

@@ -51,7 +51,11 @@
 #endif
 #endif
 
-#include <imgui/imgui_internal.h>
+#ifdef GEOGRAM_USE_SYSTEM_TEXT_EDITOR
+#include <imgui_internal.h>
+#else
+#include <geogram_gfx/third_party/imgui/imgui_internal.h>
+#endif
 
 #if defined(GEO_COMPILER_GCC_FAMILY)
 #pragma GCC diagnostic pop
@@ -94,7 +98,7 @@ namespace {
         int flags =
             ImGuiColorEditFlags_PickerHueWheel |
             ImGuiColorEditFlags_Float |
-            ImGuiColorEditFlags_AlphaPreviewHalf ;
+	    ImGuiColorEditFlags_AlphaOpaque ;
 
         if(!with_alpha) {
             flags |= ImGuiColorEditFlags_NoAlpha ;
@@ -454,7 +458,7 @@ namespace {
                 ImGui::SameLine();
                 if(pinned_) {
                     if(ImGui::SimpleButton(
-                           icon_UTF8("circle-dot") + "##pin"
+                           icon_UTF8("dot-circle") + "##pin"
                        )) {
                         pinned_ = !pinned_;
                     }
@@ -1117,6 +1121,9 @@ namespace ImGui {
     void PushFont(ImFont* font) {
 	for(int i=0; i<ImGui::GetIO().Fonts->Fonts.size(); ++i) {
 	    if(font == ImGui::GetIO().Fonts->Fonts[i]) {
+		ImGui::PushFont(
+		    font, Application::instance()->get_font_size(index_t(i))
+		);
 		return;
 	    }
 	}

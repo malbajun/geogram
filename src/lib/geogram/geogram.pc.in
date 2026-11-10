@@ -1,11 +1,11 @@
 prefix=@CMAKE_INSTALL_PREFIX@
 exec_prefix=${prefix}
-includedir=${prefix}/include/@GEOGRAM_INCLUDE_SUBPATH@
-libdir=${exec_prefix}/lib@LIB_SUFFIX@
+includedir=@CMAKE_INSTALL_FULL_INCLUDEDIR@
+libdir=@CMAKE_INSTALL_FULL_LIBDIR@
 
 Name: geogram
 Description: fast, simple and easy-to-use primitives for geometric programming
 Version: @VORPALINE_VERSION@
 URL: https://github.com/BrunoLevy/geogram
-Libs: -lgeogram
+Libs: -L${libdir} -lgeogram
 Cflags: -I${includedir}

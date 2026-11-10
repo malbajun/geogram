@@ -1232,7 +1232,7 @@ namespace GEO {
 			ImGui::SetNextItemWidth(-1.0f);
 			ImGui::Tooltip(help);
 			if(
-			    ImGui::InputText(("##" + full_arg_name).c_str(), (char *)&val, sizeof(val))
+			    ImGui::InputText(("##" + full_arg_name).c_str(),&val)
 			) {
 			    CmdLine::set_arg(full_arg_name, val);
 			}
@@ -1480,20 +1480,6 @@ namespace GEO {
 
     std::string SimpleApplication::supported_write_file_extensions() {
         return "";
-    }
-
-    ImTextureID SimpleApplication::convert_to_ImTextureID(
-        GLuint gl_texture_id_in
-    ) {
-        // It is not correct to directly cast a GLuint into a void*
-        // (generates warnings), therefore I'm using a union.
-        union {
-            GLuint gl_texture_id;
-            ImTextureID imgui_texture_id;
-        };
-        imgui_texture_id = (ImTextureID)nullptr;
-        gl_texture_id = gl_texture_id_in;
-        return imgui_texture_id;
     }
 
     void SimpleApplication::GL_initialize() {

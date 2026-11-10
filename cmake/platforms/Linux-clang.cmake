@@ -11,21 +11,11 @@ set(FULL_WARNINGS
     -Weverything
     -Wno-padded # Disable generating a message each time padding is used
     -Wno-float-equal # Sometimes we compare floats (against 0.0 or 1.0 mainly)
-    # -Wswitch-default (clang 18+) contradicts -Wcovered-switch-default: a
-    # switch that covers every enumerator warns without a default label and
-    # with one. Geogram keeps covered enum switches default-free so -Wswitch
-    # reports a missing enumerator. Same as Darwin-clang.cmake.
-    -Wno-switch-default
     -Wno-global-constructors
     -Wno-exit-time-destructors
     -Wno-old-style-cast # Yes, old-style cast is sometime more legible...
     -Wno-format-nonliteral # Todo: use Laurent Alonso's trick
     -Wno-disabled-macro-expansion # Else it complains with stderr
-    # Clang's C++ Safe Buffers model (-Wunsafe-buffer-usage, clang 16+): flags
-    # every raw pointer subscript / arithmetic. Geogram's numerics, predicates
-    # and mesh code are built on raw arrays by design, so this opt-in
-    # hardening model does not apply.
-    -Wno-unsafe-buffer-usage
 )
 
 # Compile with full warnings by default
@@ -48,10 +38,11 @@ endif()
 add_flags(CMAKE_CXX_FLAGS -Wno-unknown-warning-option)
 add_flags(CMAKE_C_FLAGS -Wno-unknown-warning-option)
 
-# Disable automatic generation of FMAs (would break exact
+# Enable setting FPU rounding mode (needed by FPG) and
+# disable automatic generation of FMAs (would break exact
 # predicates)
-add_flags(CMAKE_CXX_FLAGS -ffp-contract=off)
-add_flags(CMAKE_C_FLAGS -ffp-contract=off)
+add_flags(CMAKE_CXX_FLAGS -frounding-math -ffp-contract=off)
+add_flags(CMAKE_C_FLAGS -frounding-math -ffp-contract=off)
 
 # Additional C++ flags
 add_flags(CMAKE_CXX_FLAGS -Qunused-arguments -Wno-c++98-compat)

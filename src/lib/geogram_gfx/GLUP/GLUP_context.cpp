@@ -957,8 +957,7 @@ namespace GLUP {
         GEO_CHECK_GL();
 
         if(
-	    // used by some shaders as vertex attribute even without lighting
-            // uniform_state_.toggle[GLUP_LIGHTING].get() &&
+            uniform_state_.toggle[GLUP_LIGHTING].get() &&
             uniform_state_.toggle[GLUP_VERTEX_NORMALS].get()
         ) {
             immediate_state_.buffer[GLUP_NORMAL_ATTRIBUTE].enable();

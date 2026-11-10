@@ -37,7 +37,6 @@
  *
  */
 
-#include <TextEditor.h>
 #include <geogram_gfx/gui/text_editor.h>
 #include <geogram_gfx/gui/simple_application.h>
 #include <geogram_gfx/imgui_ext/imgui_ext.h>
@@ -75,7 +74,11 @@ namespace GEO {
         impl_.SetCursorPosition(
             ::TextEditor::CursorPosition(0,0)
         );
+#ifdef GEOGRAM_USE_SYSTEM_TEXT_EDITOR
+        impl_.SetLanguage(::TextEditor::LookupLanguage("Lua"));
+#else
         impl_.SetLanguage(::TextEditor::Language::Lua());
+#endif
         impl_.SetPalette(::TextEditor::GetDarkPalette());
 	impl_.set_callback(text_editor_callback, this);
         fixed_layout_ = true;
@@ -126,7 +129,9 @@ namespace GEO {
             text += "\n";
         }
         impl_.SetText(text);
-        impl_.SetCursorPosition(::TextEditor::Coordinates(0,0));
+        impl_.SetCursorPosition(
+            ::TextEditor::CursorPosition(0,0)
+        );
     }
 
     void TextEditor::save(const std::string& filename) {
@@ -143,7 +148,9 @@ namespace GEO {
 
     void TextEditor::load_data(const char* data) {
         impl_.SetText(data);
-        impl_.SetCursorPosition(::TextEditor::Coordinates(0,0));
+        impl_.SetCursorPosition(
+            ::TextEditor::CursorPosition(0,0)
+        );
     }
 
 }

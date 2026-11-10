@@ -1270,11 +1270,10 @@ namespace GLUP {
          * \brief Specifies the current normal vector for the
          *  immediate mode buffers.
          * \param[in] x , y , z the current normal vector coordinates.
-	 * \param[in] w an optional additional coordinate, used in some shaders.
          */
-        void immediate_normal(GLfloat x, GLfloat y, GLfloat z, GLfloat w = 0.0) {
+        void immediate_normal(GLfloat x, GLfloat y, GLfloat z) {
             immediate_state_.buffer[GLUP_NORMAL_ATTRIBUTE].set_current(
-                x,y,z,w
+                x,y,z,0.0f
             );
         }
 
@@ -1285,15 +1284,6 @@ namespace GLUP {
         void set_user_program(GLuint program) {
             user_program_ = program;
         }
-
-	/**
-	 * \brief Gets the current user program
-	 * \retval the latest user program bound using set_user_program()
-	 * \retval 0 if there is no currently bound user program
-	 */
-	GLuint user_program() const {
-	    return user_program_;
-	}
 
         /**
          * \brief Begins rendering in immediate mode.
@@ -1540,15 +1530,6 @@ namespace GLUP {
          */
         static const char* glup_primitive_name(GLUPprimitive prim);
 
-        /**
-         * \brief Copies GLUP uniform state to OpenGL
-         *  if required.
-         */
-        void update_uniform_buffer() {
-            if(uniform_buffer_dirty_) {
-                do_update_uniform_buffer();
-            }
-        }
 
     protected:
 
@@ -1730,6 +1711,15 @@ namespace GLUP {
             index_t* element_indices
         );
 
+        /**
+         * \brief Copies GLUP uniform state to OpenGL
+         *  if required.
+         */
+        void update_uniform_buffer() {
+            if(uniform_buffer_dirty_) {
+                do_update_uniform_buffer();
+            }
+        }
 
         /**
          * \brief Copies GLUP uniform state to OpenGL.

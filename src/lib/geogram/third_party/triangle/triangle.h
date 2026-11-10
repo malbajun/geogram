@@ -300,8 +300,6 @@ void triangulate(char *, struct triangulateio *, struct triangulateio *,
                  struct triangulateio *);
 void trifree(VOID *memptr);
 #else /* not ANSI_DECLARATORS */
-
-
-//void triangulate();
-//void trifree();
+void triangulate();
+void trifree();
 #endif /* not ANSI_DECLARATORS */

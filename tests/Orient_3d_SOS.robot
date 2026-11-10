@@ -20,5 +20,5 @@ orient_3d_SOS.2
 *** Keywords ***
 Run Test
     [Arguments]    ${input_name}=${TEST NAME}    @{options}
-    [Documentation]    Tests the SOS perturbed orientation predicate
+    [Documentation]    Tests the Logger, with multiple threads
     run command    test_orient_3d_SOS    @{options}

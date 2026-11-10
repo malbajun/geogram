@@ -4,6 +4,12 @@
 configure_file(geogram.pc.in ${PROJECT_BINARY_DIR}/${GEOGRAM_SYSTEM_NAME}.pc @ONLY)
 
 set(GEOGRAM_INCLUDE_SUBPATH ${GEOGRAM_SYSTEM_NAME} CACHE PATH "Header install subpath for geogram")
+configure_file(basic/build_config.h.in basic/build_config.h)
+foreach(component devkit devkit-full)
+  install(FILES "${CMAKE_CURRENT_BINARY_DIR}/basic/build_config.h"
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${GEOGRAM_INCLUDE_SUBPATH}/basic
+    COMPONENT ${component})
+endforeach()
 
 if(GEOGRAM_WITH_GEOGRAMPLUS)
    add_subdirectory(geogramplus)
@@ -52,12 +58,11 @@ configure_file(basic/version.h.in version.h @ONLY)
 list(APPEND SOURCES version.h)
 set_source_files_properties(version.h PROPERTIES GENERATED true)
 
-include_directories(${PROJECT_BINARY_DIR}/src/lib)
 
 add_library(geogram ${SOURCES})
 
 if(GEOGRAM_WITH_THIRD_PARTIES)
-   target_include_directories(geogram PRIVATE $<TARGET_OBJECTS:geogram_third_party>)
+   target_sources(geogram PRIVATE $<TARGET_OBJECTS:geogram_third_party>)
 endif()
 
 target_compile_features(geogram PUBLIC cxx_std_17)
@@ -77,8 +82,16 @@ target_link_libraries(geogram mini-gmp-plus)
 endif()
 
 if(GEOGRAM_WITH_TBB)
-   #target_link_libraries(geogram PUBLIC TBB::tbb) # TODO: Use PRIVATE keyword here
-   #target_compile_definitions(geogram PRIVATE -DGEO_TBB)
+   if(GEOGRAM_WITH_THIRD_PARTIES)
+      target_link_libraries(geogram PUBLIC TBB::tbb)
+   endif()
+   target_compile_definitions(geogram PRIVATE GEO_TBB)
+endif()
+
+# The standard library's parallel algorithms also use TBB when its headers
+# are available, independently of Geogram's explicit TBB implementation.
+if(LINUX AND NOT GEOGRAM_WITH_EMSCRIPTEN AND NOT GEOGRAM_WITH_TBB)
+   target_link_libraries(geogram PUBLIC tbb)
 endif()
 
 if(GEOGRAM_WITH_THIRD_PARTIES)
@@ -87,11 +100,11 @@ else(GEOGRAM_WITH_THIRD_PARTIES)
    find_package(PkgConfig REQUIRED)
 
    pkg_check_modules(ZLIB REQUIRED IMPORTED_TARGET zlib)
-   target_link_libraries(geogram PUBLIC ${ZLIB_LIBRARIES})
+   target_link_libraries(geogram PUBLIC PkgConfig::ZLIB)
 
    if(GEOGRAM_WITH_TBB)
       pkg_check_modules(TBB REQUIRED IMPORTED_TARGET tbb)
-      target_link_libraries(geogram PUBLIC ${TBB_LIBRARIES})
+      target_link_libraries(geogram PUBLIC PkgConfig::TBB)
    endif()
 
    find_package(triangle REQUIRED)
@@ -116,18 +129,27 @@ else(GEOGRAM_WITH_THIRD_PARTIES)
    find_package(libmeshb REQUIRED)
    message(STATUS "Found libmeshb library")
    target_link_libraries(geogram PUBLIC ${libMeshb_LIBRARIES})
+   target_include_directories(geogram PUBLIC ${libMeshb_INCLUDE_DIRS})
 
    find_package(OpenNL REQUIRED)
    message(STATUS "Found OpenNL library")
    target_link_libraries(geogram PUBLIC ${OpenNL_LIBRARIES})
    target_include_directories(geogram PUBLIC ${OpenNL_INCLUDE_DIRS})
+   # Public GUI headers declare Lua types even with the interpreter disabled.
+   find_package(Lua 5.4 REQUIRED)
+   target_include_directories(geogram PUBLIC ${LUA_INCLUDE_DIR})
+   if(GEOGRAM_WITH_LUA)
+      target_link_libraries(geogram PUBLIC ${LUA_LIBRARIES})
+   endif()
 endif()
 
 # Jeremie/Maxence: avoids the need to redeclare geogram include
 # path for targets that depend on geogram.
 # See: https://cmake.org/cmake/help/v3.3/command/target_include_directories.html
 # https://stackoverflow.com/questions/26243169/cmake-target-include-directories-meaning-of-scope
-target_include_directories(geogram PUBLIC ${PROJECT_SOURCE_DIR}/src/lib)
+target_include_directories(geogram PUBLIC
+  ${PROJECT_SOURCE_DIR}/src/lib
+  $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/src/lib>)
 
 if(ANDROID)
 target_include_directories(geogram PRIVATE
@@ -146,11 +168,7 @@ if(UNIX AND VORPALINE_BUILD_DYNAMIC)
 if (ANDROID)
    target_link_libraries(geogram dl)
 else()
-  if(GEOGRAM_USE_BUILTIN_DEPS)
-      target_link_libraries(geogram PUBLIC pthread dl)
-  else()
-      target_link_libraries(geogram PUBLIC pthread dl lua5.4 z triangle Meshb.7 rply)
-  endif()
+  target_link_libraries(geogram PUBLIC pthread dl)
 endif()
 endif()
 

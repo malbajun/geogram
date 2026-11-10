@@ -49,7 +49,6 @@
 #include <geogram/mesh/mesh_AABB.h>
 
 #ifdef RAYTRACE_GUI
-#include <imgui/imgui.h>
 #include <geogram_gfx/imgui_ext/imgui_ext.h>
 #endif
 

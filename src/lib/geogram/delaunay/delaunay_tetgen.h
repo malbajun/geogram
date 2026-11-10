@@ -50,12 +50,21 @@
 
 #include <geogram/basic/common.h>
 #include <geogram/delaunay/delaunay.h>
+#ifdef GEOGRAM_USE_BUILTIN_DEPS
+#include <geogram/third_party/tetgen/tetgen.h>
+#else
 #include <tetgen/tetgen.h>
+#endif
 
 // #define GEO_3rdParty
 // #define deinitialize clean_memory
 
 namespace GEO {
+#ifdef GEOGRAM_USE_BUILTIN_DEPS
+    using GEO_3rdParty::tetgenio;
+    using GEO_3rdParty::tetgenbehavior;
+    using GEO_3rdParty::tetrahedralize;
+#endif
 
     /**
      * \brief Implementation of Delaunay using Hang Si's tetgen library.

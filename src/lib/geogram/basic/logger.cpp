@@ -75,7 +75,6 @@ namespace {
             std::ostream(new CERRStreamBuff(this)),lock_(GEOGRAM_SPINLOCK_INIT) {
         }
         ~CERRStream() override{
-            delete rdbuf();
         }
         void lock() {
             Process::acquire_spinlock(lock_);

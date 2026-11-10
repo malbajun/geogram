@@ -139,12 +139,6 @@ namespace GEO {
 // use geo_debug_assert() and geo_debug_range_assert()   expensive asserts
 // use geo_parano_assert() and geo_parano_range_assert() very exensive asserts
 
-
-// used to implement geo_xxx_assert() macros: puts argument in a block and
-// has a dummy while to avoid compiler warning about spurious semi-colon.
-#define GEO_ASSERTION(X)    do { X } while(false)
-#define GEO_NO_ASSERTION()  do {   } while(false)
-
 /**
  * \brief Verifies that a condition is met
  * \details Checks if the condition \p x. If the condition is false, it prints
@@ -152,11 +146,11 @@ namespace GEO {
  * \param[in] x the boolean expression of the condition
  * \see geo_assertion_failed()
  */
-#define geo_assert(x) GEO_ASSERTION({			\
+#define geo_assert(x) {                                         \
         if(!(x)) {                                              \
             GEO::geo_assertion_failed(#x, __FILE__, __LINE__);  \
         }                                                       \
-    })
+    }
 
 /**
  * \brief Verifies that a value is in a legal range
@@ -168,21 +162,21 @@ namespace GEO {
  * \param[in] max_val maximum allowed value
  * \see geo_range_assertion_failed()
  */
-#define geo_range_assert(x, min_val, max_val) GEO_ASSERTION({		\
+#define geo_range_assert(x, min_val, max_val) {                         \
         if(((x) < (min_val)) || ((x) > (max_val))) {                    \
             GEO::geo_range_assertion_failed(x, min_val, max_val,        \
                                             __FILE__, __LINE__          \
                                            );                           \
         }                                                               \
-    })
+    }
 
 /**
  * \brief Sets a non reachable point in the program
  * \details
  */
-#define geo_assert_not_reached GEO_ASSERTION({			\
+#define geo_assert_not_reached {                                \
         GEO::geo_should_not_have_reached(__FILE__, __LINE__);   \
-    })
+    }
 
 /**
  * \def geo_debug_assert(x)
@@ -199,9 +193,9 @@ namespace GEO {
 #define geo_debug_range_assert(x, min_val, max_val) geo_range_assert(x, min_val, max_val)
 #define geo_debug(x) x
 #else
-#define geo_debug_assert(x) GEO_NO_ASSERTION()
-#define geo_debug_range_assert(x, min_val, max_val) GEO_NO_ASSERTION()
-#define geo_debug(x) GEO_NO_ASSERTION()
+#define geo_debug_assert(x)
+#define geo_debug_range_assert(x, min_val, max_val)
+#define geo_debug(x)
 #endif
 
 /**
@@ -218,8 +212,8 @@ namespace GEO {
 #define geo_parano_assert(x) geo_assert(x)
 #define geo_parano_range_assert(x, min_val, max_val) geo_range_assert(x, min_val, max_val)
 #else
-#define geo_parano_assert(x) GEO_NO_ASSERTION()
-#define geo_parano_range_assert(x, min_val, max_val) GEO_NO_ASSERTION()
+#define geo_parano_assert(x)
+#define geo_parano_range_assert(x, min_val, max_val)
 #endif
 
 #endif

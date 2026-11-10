@@ -40,6 +40,8 @@
 #ifndef GEOGRAM_GFX_BASIC_COMMON
 #define GEOGRAM_GFX_BASIC_COMMON
 
+#include <geogram_gfx/basic/config.h>
+
 #include <geogram/basic/common.h>
 #include <geogram_gfx/api/defs.h>
 #include <geogram_gfx/basic/GL.h>
@@ -50,7 +52,7 @@
  *  included before anything else by all header files in geogram_gfx.
  */
 
-//#define IMGUI_DISABLE_OBSOLETE_FUNCTIONS
+#define IMGUI_DISABLE_OBSOLETE_FUNCTIONS
 #define IMGUI_DISABLE_OBSOLETE_KEYIO
 
 namespace GEO {

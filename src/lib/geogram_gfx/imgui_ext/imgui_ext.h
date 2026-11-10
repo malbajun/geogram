@@ -53,7 +53,16 @@
 #endif
 #endif
 
-#include <imgui/imgui.h>
+#ifdef GEOGRAM_USE_SYSTEM_TEXT_EDITOR
+#include <imgui.h>
+#else
+#include <geogram_gfx/third_party/imgui/imgui.h>
+#endif
+#ifdef GEOGRAM_USE_SYSTEM_TEXT_EDITOR
+#include <geogram_gfx/imgui_ext/imgui_stdlib.h>
+#else
+#include <geogram_gfx/third_party/imgui/misc/cpp/imgui_stdlib.h>
+#endif
 
 #if defined(GEO_COMPILER_GCC_FAMILY)
 #pragma GCC diagnostic pop
