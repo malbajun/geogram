@@ -26,9 +26,12 @@ endif()
 # command, since project() resets CFLAGS and CXXFLAGS.
 
 if(IS_DIRECTORY ${CMAKE_SOURCE_DIR}/src/lib/vorpalib)
-project(Vorpaline VERSION "${VORPALINE_VERSION_PLAIN}")
+   project(Vorpaline VERSION "${VORPALINE_VERSION_PLAIN}")
+   set(GEOGRAM_SYSTEM_NAME vorpaline${VORPALINE_VERSION_MAJOR} CACHE STRING "System name for the project vorpaline")
 else()
-project(Geogram VERSION "${VORPALINE_VERSION_PLAIN}")
+   project(Geogram VERSION "${VORPALINE_VERSION_PLAIN}")
+   set(GEOGRAM_SYSTEM_NAME geogram CACHE STRING "System name for the project geogram")
+   set(GEOGRAMGFX_SYSTEM_NAME geogram_gfx CACHE STRING "System name for the project geogram gfx")
 endif()
 
 if(GEOGRAM_FOR_DEBIAN)
@@ -50,30 +53,31 @@ option(GEOGRAM_WITH_LUA "Built-in LUA interpreter" ON)
 option(GEOGRAM_LIB_ONLY "Libraries only (no example programs/no viewer)" OFF)
 option(GEOGRAM_WITH_FPG "Predicate generator (Sylvain Pion's FPG)" OFF)
 option(GEOGRAM_USE_SYSTEM_GLFW3 "Use the version of GLFW3 installed in the system if found" OFF)
+option(GEOGRAM_USE_SYSTEM_TEXT_EDITOR "Use standalone ImGuiColorTextEdit and system ImGui" OFF)
 option(GEOGRAM_WITH_GARGANTUA "64-bit indices" OFF)
 option(GEOGRAM_WITH_TBB "Use TBB for multi-threading" OFF)
-option(GEOGRAM_FOR_DEBIAN "Build geogram for Debian packaging")
+option(GEOGRAM_WITH_THIRD_PARTIES "Use third party code" ON)
+option(GEOGRAM_FOR_DEBIAN "Build geogram for Debian packaging" OFF)
 include(cmake/geo_detect_platform.cmake)
 endif()
 
-if(GEOGRAM_WITH_TBB AND NOT TARGET TBB::tbb)
+if(GEOGRAM_WITH_TBB AND GEOGRAM_WITH_THIRD_PARTIES AND NOT TARGET TBB::tbb)
 include(cmake/onetbb.cmake)
 endif()
+
+# Set remaining CMAKE_INSTALL_...DIR variables
+include(GNUInstallDirs)
+
+set(SHARE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}" CACHE STRING "")
 
 include(cmake/geogram.cmake)
 
 # Override default CMAKE_INSTALL_DOCDIR: Use doc instead of CMake default DATAROOTDIR/doc/PROJECT_NAME
 set(CMAKE_INSTALL_DOCDIR doc CACHE PATH "Documentation root")
 
-# Set remaining CMAKE_INSTALL_...DIR variables
-include(GNUInstallDirs)
-
 # Install destinations for pkg-config and CMake files
 set(GEOGRAM_INSTALL_PKGCONFIG_DIR ${CMAKE_INSTALL_LIBDIR}/pkgconfig CACHE PATH "pkg-config file install destination")
 set(GEOGRAM_INSTALL_CMAKE_DIR ${CMAKE_INSTALL_LIBDIR}/cmake/modules CACHE PATH "CMake file install destination")
-
-
-set(VORPALINE_INCLUDE_SUBPATH geogram${VORPALINE_VERSION_MAJOR})
 
 # Determine the current Build-OS (Build-platform without the compiler info)
 string(REGEX REPLACE "-[^-]+$" "" VORPALINE_OS ${VORPALINE_PLATFORM})
@@ -166,7 +170,6 @@ file(REMOVE ${CMAKE_BINARY_DIR}/doc/LICENSE.txt)
 
 
 # FindGeogram.cmake
-
 install(FILES cmake/FindGeogram.cmake DESTINATION ${GEOGRAM_INSTALL_CMAKE_DIR} COMPONENT devkit)
 
 # Configure CPack

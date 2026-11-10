@@ -1,9 +1,41 @@
 include(${PROJECT_SOURCE_DIR}/cmake/opengl.cmake)
 
-configure_file(geogram_gfx.pc.in ${PROJECT_BINARY_DIR}/geogram_gfx${VORPALINE_VERSION_MAJOR}.pc @ONLY)
+set(GEOGRAMGFX_INCLUDE_SUBPATH ${GEOGRAMGFX_SYSTEM_NAME} CACHE PATH "Header install subpath for geogram gfx")
+configure_file(basic/config.h.in basic/config.h)
+include_directories(${PROJECT_BINARY_DIR}/src/lib)
+foreach(component devkit devkit-full)
+  install(FILES "${CMAKE_CURRENT_BINARY_DIR}/basic/config.h"
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${GEOGRAMGFX_INCLUDE_SUBPATH}/basic
+    COMPONENT ${component})
+endforeach()
 
-add_definitions(-DIMGUI_USER_CONFIG="geogram_imconfig.h")
-add_subdirectory(third_party)
+configure_file(geogram_gfx.pc.in ${PROJECT_BINARY_DIR}/${GEOGRAMGFX_SYSTEM_NAME}.pc @ONLY)
+
+if(GEOGRAM_USE_SYSTEM_TEXT_EDITOR)
+  find_package(ImGuiColorTextEdit CONFIG REQUIRED)
+  if(NOT ImGuiColorTextEdit_GEOGRAM_ENABLED)
+    message(FATAL_ERROR "ImGuiColorTextEdit must be built with ENABLE_GEOGRAM=ON")
+  endif()
+  include(CheckCXXSourceCompiles)
+  set(CMAKE_REQUIRED_LIBRARIES ImGuiColorTextEdit::ImGuiColorTextEdit)
+  check_cxx_source_compiles("#include <imgui.h>
+    #ifndef IMGUI_HAS_DOCK
+    #error Geogram requires ImGui docking
+    #endif
+    int main() { return 0; }" GEOGRAM_SYSTEM_IMGUI_HAS_DOCKING)
+  unset(CMAKE_REQUIRED_LIBRARIES)
+  if(NOT GEOGRAM_SYSTEM_IMGUI_HAS_DOCKING)
+    message(FATAL_ERROR "Geogram requires an ImGui docking build compatible with its backends")
+  endif()
+  add_definitions(-DGEOGRAM_USE_SYSTEM_TEXT_EDITOR)
+else()
+  add_definitions(-DIMGUI_USER_CONFIG="geogram_imconfig.h")
+endif()
+if(GEOGRAM_WITH_THIRD_PARTIES)
+  add_subdirectory(third_party)
+elseif(NOT GEOGRAM_USE_SYSTEM_TEXT_EDITOR)
+  message(FATAL_ERROR "Unbundled builds require GEOGRAM_USE_SYSTEM_TEXT_EDITOR=ON")
+endif()
 
 aux_source_directories(SOURCES "Source Files"                .)
 aux_source_directories(SOURCES "Source Files\\imgui_ext"     imgui_ext)
@@ -23,10 +55,23 @@ if(GEOGRAM_USE_SYSTEM_GLFW3)
 add_definitions(-DGEO_USE_SYSTEM_GLFW3)
 endif()
 
-add_library(geogram_gfx ${SOURCES} $<TARGET_OBJECTS:geogram_gfx_third_party>)
+if(GEOGRAM_WITH_THIRD_PARTIES)
+  list(APPEND SOURCES $<TARGET_OBJECTS:geogram_gfx_third_party>)
+else()
+  aux_source_directories(SOURCES "Source Files\\third_party\\glad" third_party/glad)
+endif()
+add_library(geogram_gfx ${SOURCES})
+
+if(GEOGRAM_USE_SYSTEM_TEXT_EDITOR)
+  target_link_libraries(geogram_gfx ImGuiColorTextEdit::ImGuiColorTextEdit)
+  target_compile_features(geogram_gfx PUBLIC cxx_std_17)
+  target_compile_definitions(geogram_gfx PUBLIC GEOGRAM_USE_SYSTEM_TEXT_EDITOR)
+endif()
 
 target_include_directories(geogram_gfx PUBLIC ${PROJECT_SOURCE_DIR}/src/lib/geogram_gfx/third_party)
-target_include_directories(geogram_gfx PRIVATE ${PROJECT_SOURCE_DIR}/src/lib/geogram_gfx/third_party/imgui)
+if(NOT GEOGRAM_USE_SYSTEM_TEXT_EDITOR)
+  target_include_directories(geogram_gfx PRIVATE ${PROJECT_SOURCE_DIR}/src/lib/geogram_gfx/third_party/imgui)
+endif()
 
 if(ANDROID)
 target_include_directories(geogram_gfx PRIVATE
@@ -61,7 +106,7 @@ install_devkit_targets(geogram_gfx)
 # Install include files for the standard devkit
 install(
 DIRECTORY .
-DESTINATION include/${VORPALINE_INCLUDE_SUBPATH}/geogram_gfx
+DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${GEOGRAMGFX_INCLUDE_SUBPATH}
 COMPONENT devkit
 FILES_MATCHING PATTERN *.h
 )
@@ -69,12 +114,20 @@ FILES_MATCHING PATTERN *.h
 # Install include files for the full devkit
 install(
 DIRECTORY .
-DESTINATION include/${VORPALINE_INCLUDE_SUBPATH}/geogram_gfx
+DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${GEOGRAMGFX_INCLUDE_SUBPATH}
 COMPONENT devkit-full
 FILES_MATCHING PATTERN *.h
 )
 
+if(GEOGRAM_USE_SYSTEM_TEXT_EDITOR AND GEOGRAM_WITH_LUA AND GEOGRAM_WITH_THIRD_PARTIES)
+  foreach(component devkit devkit-full)
+    install(FILES "${PROJECT_BINARY_DIR}/src/lib/geogram_gfx/lua/luawrap_runtime.h"
+      DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${GEOGRAMGFX_INCLUDE_SUBPATH}/lua
+      COMPONENT ${component})
+  endforeach()
+endif()
+
 install(
-FILES "${PROJECT_BINARY_DIR}/geogram_gfx${VORPALINE_VERSION_MAJOR}.pc"
-DESTINATION lib${LIB_SUFFIX}/pkgconfig
+FILES "${PROJECT_BINARY_DIR}/${GEOGRAMGFX_SYSTEM_NAME}.pc"
+DESTINATION ${GEOGRAM_INSTALL_PKGCONFIG_DIR}
 )
