@@ -41,7 +41,11 @@
 #include <geogram_gfx/gui/user_callback_android.h>
 
 #include <geogram_gfx/imgui_ext/imgui_ext.h>
+#if defined(GEOGRAM_USE_SYSTEM_TEXT_EDITOR) && !defined(GEOGRAM_USE_BUILTIN_DEPS)
+#include <backends/imgui_impl_opengl3.h>
+#else
 #include <geogram_gfx/third_party/imgui/backends/imgui_impl_opengl3.h>
+#endif
 #include <geogram_gfx/imgui_ext/icon_font.h>
 
 #include <geogram_gfx/lua/lua_glup.h>
@@ -59,7 +63,11 @@
 
 
 #if defined(GEO_GLFW)
+#if defined(GEOGRAM_USE_SYSTEM_TEXT_EDITOR) && !defined(GEOGRAM_USE_BUILTIN_DEPS)
+#include <backends/imgui_impl_glfw.h>
+#else
 #  include <geogram_gfx/third_party/imgui/backends/imgui_impl_glfw.h>
+#endif
 // Too many documentation warnings in glfw
 // (glfw uses tags that clang does not understand).
 #  ifdef __clang__

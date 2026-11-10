@@ -44,6 +44,10 @@
 #include <geogram/mesh/mesh.h>
 #include <geogram/bibliography/bibliography.h>
 
+#ifndef GEOGRAM_USE_BUILTIN_DEPS
+using triangulo::triangulate;
+#endif
+
 namespace {
 
     /**

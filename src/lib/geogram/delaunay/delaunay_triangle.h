@@ -51,16 +51,16 @@
 #include <geogram/basic/common.h>
 #include <geogram/delaunay/delaunay.h>
 
-extern "C" {
 #define REAL double
 #define ANSI_DECLARATORS
 #define VOID void
 #ifdef GEOGRAM_USE_BUILTIN_DEPS
+extern "C" {
 #include <geogram/third_party/triangle/triangle.h>
-#else
-#include <triangle.h>
-#endif
 }
+#else
+#include <triangle/triangle.h>
+#endif
 
 namespace GEO {
 

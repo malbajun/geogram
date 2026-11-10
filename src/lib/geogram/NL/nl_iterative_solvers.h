@@ -8,7 +8,11 @@
 extern "C" {
 #endif
 
+#ifdef GEOGRAM_USE_BUILTIN_DEPS
 #include <geogram/third_party/OpenNL/nl_iterative_solvers.h>
+#else
+#include <nl_iterative_solvers.h>
+#endif
 
 #ifdef __cplusplus
 }

@@ -103,12 +103,16 @@ namespace GEO {
         }
 
         Delaunay::set_vertices(nb_vertices, vertices);
+#ifdef GEOGRAM_USE_BUILTIN_DEPS
         tetgen_out_.deinitialize();
+#else
+        tetgen_out_.clean_memory();
+#endif
         tetgen_in_.initialize();
         tetgen_in_.numberofpoints = int(nb_vertices);
         tetgen_in_.pointlist = const_cast<double*>(vertices);
         try {
-            GEO_3rdParty::tetrahedralize(
+            tetrahedralize(
                 &tetgen_args_, &tetgen_in_, &tetgen_out_
             );
         }
@@ -142,7 +146,11 @@ namespace GEO {
                 << std::endl;
         }
 
+#ifdef GEOGRAM_USE_BUILTIN_DEPS
         tetgen_out_.deinitialize();
+#else
+        tetgen_out_.clean_memory();
+#endif
 
         // Q: quiet
         // p: input data is surfacic
@@ -172,7 +180,11 @@ namespace GEO {
         }
         tetgen_args_.parse_commandline(const_cast<char*>(cmdline.c_str()));
 
+#ifdef GEOGRAM_USE_BUILTIN_DEPS
         tetgen_in_.deinitialize();
+#else
+        tetgen_in_.clean_memory();
+#endif
         tetgen_in_.initialize();
         tetgen_in_.firstnumber = 0 ;
 
@@ -215,18 +227,18 @@ namespace GEO {
         //
         // All the polygons are allocated in one go, in a contiguous array.
 
-        GEO_3rdParty::tetgenio::polygon* polygons =
-            new GEO_3rdParty::tetgenio::polygon[constraints_->facets.nb()];
+        tetgenio::polygon* polygons =
+            new tetgenio::polygon[constraints_->facets.nb()];
         tetgen_in_.numberoffacets = int(constraints_->facets.nb()) ;
         tetgen_in_.facetlist =
-            new GEO_3rdParty::tetgenio::facet[tetgen_in_.numberoffacets];
+            new tetgenio::facet[tetgen_in_.numberoffacets];
         for(index_t f=0; f<constraints_->facets.nb(); ++f) {
-            GEO_3rdParty::tetgenio::facet& F = tetgen_in_.facetlist[f];
-            GEO_3rdParty::tetgenio::init(&F);
+            tetgenio::facet& F = tetgen_in_.facetlist[f];
+            tetgenio::init(&F);
             F.numberofpolygons = 1;
             F.polygonlist = &polygons[f];
-            GEO_3rdParty::tetgenio::polygon& P = F.polygonlist[0];
-            GEO_3rdParty::tetgenio::init(&P) ;
+            tetgenio::polygon& P = F.polygonlist[0];
+            tetgenio::init(&P) ;
             P.numberofvertices = int(constraints_->facets.nb_vertices(f));
             P.vertexlist = reinterpret_cast<int*>(
                 const_cast<Mesh*>(constraints_)->facet_corners.vertex_index_ptr(
@@ -241,7 +253,7 @@ namespace GEO {
         int error_code = 0;
 
         try {
-            GEO_3rdParty::tetrahedralize(
+            tetrahedralize(
                 &tetgen_args_, &tetgen_in_, &tetgen_out_
             );
         } catch(...) {
@@ -256,7 +268,7 @@ namespace GEO {
               cmdline += "d";
               tetgen_args_.parse_commandline(const_cast<char*>(cmdline.c_str()));
               try {
-              GEO_3rdParty::tetrahedralize(
+              tetrahedralize(
               &tetgen_args_, &tetgen_in_, &tetgen_out_
               );
               } catch(...) {

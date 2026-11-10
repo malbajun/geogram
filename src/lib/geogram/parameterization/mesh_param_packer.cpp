@@ -45,7 +45,11 @@
 #include <geogram/points/principal_axes.h>
 #include <geogram/basic/logger.h>
 #include <geogram/numerics/matrix_util.h>
+#ifdef GEOGRAM_USE_BUILTIN_DEPS
 #include <geogram/third_party/xatlas/xatlas.h>
+#else
+#include <xatlas/xatlas.h>
+#endif
 #include <algorithm>
 #include <stack>
 #include <math.h>
@@ -153,7 +157,9 @@ namespace {
             uv_mesh_decl_.indexOffset = 0;
             uv_mesh_decl_.indexFormat = xatlas::IndexFormat::UInt32;
             uv_mesh_decl_.faceMaterialData = nullptr;
+#ifdef GEOGRAM_USE_BUILTIN_DEPS
             uv_mesh_decl_.rotateCharts = false;
+#endif
         }
 
         xatlas::MeshDecl mesh_decl_;
@@ -218,7 +224,11 @@ namespace GEO {
 
             atlas = xatlas::Create();
             for(index_t c=0; c<nb_charts; ++c) {
+#ifdef GEOGRAM_USE_BUILTIN_DEPS
                 xatlas::AddMeshError::Enum error = xatlas::AddUvMesh(
+#else
+                xatlas::AddMeshError error = xatlas::AddUvMesh(
+#endif
                     atlas, charts[c].uv_mesh_decl_
                 );
                 if (error != xatlas::AddMeshError::Success) {
