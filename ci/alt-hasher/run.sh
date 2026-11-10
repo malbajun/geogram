@@ -37,6 +37,7 @@ trap cleanup EXIT
 docker run --detach --name "$container" --privileged --cgroupns=private \
     --env "ALT_BUILDER_UID=$builder_uid" \
     --env "ALT_HASHER_PACKAGER=${ALT_HASHER_PACKAGER:-Pavel Skrylev <majioa@altlinux.org>}" \
+    --mount 'type=bind,src=/etc/ssl/certs/ca-certificates.crt,dst=/run/ci-apt-ca.crt,readonly' \
     --mount "type=bind,src=$source_dir,dst=/sources,readonly" \
     --mount "type=bind,src=$results_dir,dst=/results" \
     "$image" sleep infinity

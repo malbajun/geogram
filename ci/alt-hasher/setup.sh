@@ -12,9 +12,13 @@ fi
 # Use a mirror of the same signed Sisyphus repository. The primary server can
 # throttle downloads enough to exhaust the job before initroot completes.
 # Keep ALT's keyring, [alt] source tags and package verification enabled.
-sed -i 's@http://ftp.altlinux.org/pub/distributions/ALTLinux@http://mirror.yandex.ru/altlinux@g' \
+sed -i 's@http://ftp.altlinux.org/pub/distributions/ALTLinux@https://mirror.yandex.ru/altlinux@g' \
     /etc/apt/sources.list.d/alt.list
+test -s /run/ci-apt-ca.crt
+# Trust the runner's public CA bundle for the initial repository request.
+# Keep peer/host verification enabled; ALT package signatures are separate.
 printf '%s\n' 'Acquire::http::No-Cache "true";' \
+    'Acquire::https::CaInfo "/run/ci-apt-ca.crt";' \
     > /etc/apt/apt.conf.d/99-ci-repository-cache.conf
 apt-config dump | grep -q '^Acquire::http::No-Cache "true";$'
 for attempt in 1 2 3; do
@@ -26,10 +30,6 @@ for attempt in 1 2 3; do
 done
 apt-get -y -o Acquire::Retries=2 -o Acquire::http::Timeout=40 \
     install gear hasher hasher-priv util-linux ca-certificates
-# Bootstrap the trust store first, then keep hasher's repository requests on
-# HTTPS so intermediate HTTP caches cannot mix different mirror snapshots.
-sed -i 's@http://mirror.yandex.ru@https://mirror.yandex.ru@g' \
-    /etc/apt/sources.list.d/alt.list
 rpm -q gear hasher hasher-priv > /results/tool-versions.txt
 
 useradd --create-home --uid "${ALT_BUILDER_UID:-1000}" builder
