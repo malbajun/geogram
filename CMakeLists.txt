@@ -159,6 +159,28 @@ endif()
 
 add_subdirectory(doc)
 
+set(GEOGRAM_TEST_INSTALL_PREFIX "" CACHE PATH "Installed prefix to verify with CTest")
+set(GEOGRAM_TEST_BUILD_JOBS "1" CACHE STRING "Parallel jobs for the installed consumer build")
+if(GEOGRAM_TEST_INSTALL_PREFIX)
+    if(NOT GEOGRAM_WITH_GRAPHICS OR NOT GEOGRAM_USE_SYSTEM_TEXT_EDITOR)
+        message(FATAL_ERROR "Installed consumer checks require graphics and the standalone text editor")
+    endif()
+    if(NOT GEOGRAM_TEST_BUILD_JOBS MATCHES "^[1-9][0-9]*$")
+        message(FATAL_ERROR "GEOGRAM_TEST_BUILD_JOBS must be a positive integer")
+    endif()
+    file(RELATIVE_PATH GEOGRAM_TEST_LIBDIR
+        "${CMAKE_INSTALL_PREFIX}" "${CMAKE_INSTALL_FULL_LIBDIR}")
+    get_filename_component(_geogram_module_dir "${GEOGRAM_INSTALL_CMAKE_DIR}"
+        ABSOLUTE BASE_DIR "${CMAKE_INSTALL_PREFIX}")
+    file(RELATIVE_PATH GEOGRAM_TEST_MODULE_DIR
+        "${CMAKE_INSTALL_PREFIX}" "${_geogram_module_dir}")
+    configure_file(tests/standalone-text-editor/CheckInstalled.cmake.in
+        "${PROJECT_BINARY_DIR}/tests/CheckInstalled.cmake" @ONLY)
+    enable_testing()
+    add_test(NAME installed-editor-integration
+        COMMAND "${CMAKE_COMMAND}" -P "${PROJECT_BINARY_DIR}/tests/CheckInstalled.cmake")
+endif()
+
 ##############################################################################
 # Cleanup from previous builds
 
