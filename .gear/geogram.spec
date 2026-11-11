@@ -1,9 +1,9 @@
 %define        _unpackaged_files_terminate_build 1
 
 %ifarch loongarch64
-%def_disable legacy_numeric
+%def_disable   legacy_numeric
 %else
-%def_enable legacy_numeric
+%def_enable    legacy_numeric
 %endif
 
 Name:          geogram
