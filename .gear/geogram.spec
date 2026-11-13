@@ -8,7 +8,7 @@
 
 Name:          geogram
 Version:       1.10.1
-Release:       alt1
+Release:       alt2
 Summary:       Geogram library by INRIA
 License:       BSD-3-Clause AND MIT
 Group:         Sciences/Mathematics
@@ -83,7 +83,6 @@ Group:         Development/C++
 Summary:       Development files for %name
 
 Requires:      lib%{name} = %EVR
-Requires:      cmake
 Requires:      cmake(imgui)
 Requires:      cmake(ImGuiColorTextEdit)
 Requires:      pkgconfig(glfw3)
@@ -247,6 +246,15 @@ Transport in 3d that scales up to 1 million Dirac masses.
 %_libdir/lib%{name}_gfx*.so
 
 %changelog
+* Sat Nov 14 2026 Pavel Skrylev <majioa@altlinux.org> 1.10.1-alt2
+- * used the upstream editor API and handled F5 in Geogram
+- - removed the editor's Geogram build-mode requirement
+- ! bumped standalone graphics ABI for the new editor layout
+- ! fixed Lua compatibility names colliding with retained ImGui enums
+- ! preserved the external ImGui configuration and struct layouts
+- + checked F5 routing with editor and unrelated window focus
+- - removed the build-only CMake tool from development requirements
+
 * Tue Nov 10 2026 Pavel Skrylev <majioa@altlinux.org> 1.10.1-alt1
 - ^ 1.10.0 -> 1.10.1
 - + standalone ImGuiColorTextEdit support
