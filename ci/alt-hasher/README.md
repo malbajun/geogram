@@ -7,7 +7,7 @@ supplies dependencies between builds. Source revisions and all resulting RPMs
 are retained in the Actions artifact for 14 days.
 
 Geogram uses its system dependency mode, the standalone editor built with
-`ENABLE_GEOGRAM=ON`, and system ImGui backends. Lua stays disabled as in the
+the upstream editor API, and system ImGui backends. Lua stays disabled as in the
 original ALT packaging. The small ImGui string adapter is compiled as Geogram
 application support; it does not duplicate or modify ImGui core.
 
