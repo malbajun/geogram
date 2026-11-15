@@ -8,7 +8,7 @@
 
 Name:          geogram
 Version:       1.10.1
-Release:       alt1
+Release:       alt3
 Summary:       Geogram library by INRIA
 License:       BSD-3-Clause AND MIT
 Group:         Sciences/Mathematics
@@ -83,7 +83,6 @@ Group:         Development/C++
 Summary:       Development files for %name
 
 Requires:      lib%{name} = %EVR
-Requires:      cmake
 Requires:      cmake(imgui)
 Requires:      cmake(ImGuiColorTextEdit)
 Requires:      pkgconfig(glfw3)
@@ -181,6 +180,9 @@ Transport in 3d that scales up to 1 million Dirac masses.
 %setup
 
 %build
+%ifarch %ix86
+%add_optflags -DGEOGRAM_X87_DOUBLE_PRECISION
+%endif
 %cmake -DVORPALINE_PLATFORM:STRING=AltLinux-gcc \
        -DARCH:STRING=%_arch \
        -DGEOGRAM_SYSTEM_NAME=%name \
@@ -247,6 +249,19 @@ Transport in 3d that scales up to 1 million Dirac masses.
 %_libdir/lib%{name}_gfx*.so
 
 %changelog
+* Sun Nov 15 2026 Pavel Skrylev <majioa@altlinux.org> 1.10.1-alt3
+- ! restored the arithmetic precision check on x87
+- ! selected 53-bit x87 precision for 32-bit x86 builds
+
+* Sat Nov 14 2026 Pavel Skrylev <majioa@altlinux.org> 1.10.1-alt2
+- * used the upstream editor API and handled F5 in Geogram
+- - removed the editor's Geogram build-mode requirement
+- ! bumped standalone graphics ABI for the new editor layout
+- ! fixed Lua compatibility names colliding with retained ImGui enums
+- ! preserved the external ImGui configuration and struct layouts
+- + checked F5 routing with editor and unrelated window focus
+- - removed the build-only CMake tool from development requirements
+
 * Tue Nov 10 2026 Pavel Skrylev <majioa@altlinux.org> 1.10.1-alt1
 - ^ 1.10.0 -> 1.10.1
 - + standalone ImGuiColorTextEdit support
